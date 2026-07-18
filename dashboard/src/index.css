@@ -1,20 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-base: #0b0d12;
-  --bg-surface: #151821;
-  --bg-surface-elevated: #1f2330;
-  --text-primary: #f8f9fa;
-  --text-secondary: #94a3b8;
-  --accent-primary: #6366f1;
-  --accent-primary-hover: #818cf8;
-  --accent-success: #10b981;
-  --accent-danger: #ef4444;
-  --accent-warning: #f59e0b;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --glass-bg: rgba(21, 24, 33, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  /* Light Mode Palette */
+  --bg-base: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  
+  /* Blue Theme */
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  
+  /* Status Colors adjusted for Light Mode */
+  --accent-success: #059669;
+  --accent-danger: #dc2626;
+  --accent-warning: #d97706;
+  
+  /* Borders and Effects */
+  --border-color: rgba(15, 23, 42, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(15, 23, 42, 0.05);
+  --glass-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  
+  /* Variables */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --radius-sm: 8px;
   --radius-md: 16px;
@@ -36,9 +45,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  /* Premium subtle background gradient */
-  background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 40%),
-                    radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.03), transparent 40%);
+  /* Premium subtle background gradient for light mode */
+  background-image: radial-gradient(circle at top right, rgba(37, 99, 235, 0.04), transparent 50%),
+                    radial-gradient(circle at bottom left, rgba(5, 150, 105, 0.02), transparent 40%);
   background-attachment: fixed;
 }
 
@@ -64,7 +73,7 @@ a:hover {
 }
 
 .glass-panel:hover {
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 30px -4px rgba(15, 23, 42, 0.1);
 }
 
 /* Animations */
@@ -82,7 +91,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.2;
   margin-bottom: 0.5em;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 h1 { font-size: 2.5rem; letter-spacing: -0.02em; }
@@ -128,9 +137,9 @@ h4 { font-size: 1.1rem; font-weight: 500; }
   background: var(--bg-base);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-surface-elevated);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: #94a3b8;
 }
