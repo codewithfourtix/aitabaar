@@ -19,6 +19,10 @@ dist/
 build/
 .vite/
 
+# WhatsApp session (NEVER commit — it is a logged-in session)
+.wwebjs_auth/
+.wwebjs_cache/
+
 # ML artifacts / data
 *.pkl
 *.joblib
