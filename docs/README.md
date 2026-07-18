@@ -11,6 +11,7 @@
 | [dashboard-spec.md](dashboard-spec.md) | Screens, components, API calls per screen | build the dashboard (Ali A) |
 | [git-workflow.md](git-workflow.md) | Branches, commits, merges, contract-change process | commit anything |
 | [decisions.md](decisions.md) | Why we chose what we chose | disagree with something |
+| [demo-runbook.md](demo-runbook.md) | Deploy steps + the 5-step demo script + failure modes | run the demo or deploy |
 
 ## Changing the contract (the anti-conflict process)
 
