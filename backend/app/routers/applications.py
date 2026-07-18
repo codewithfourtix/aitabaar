@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app import mock_data, storage
 from app.engine import extraction, rationale, scoring, verification
@@ -105,12 +105,16 @@ async def upload_document(app_id: str, type: DocumentType = Form(...), file: Upl
 
 
 @router.post("/{app_id}/submit", response_model=Application)
-def submit_application(app_id: str):
+def submit_application(app_id: str, background_tasks: BackgroundTasks):
+    """Submit returns immediately; the engine runs as a background task so the
+    dashboard queue shows the application move live through
+    processing -> scored while the applicant's WhatsApp thread stays snappy."""
     app = _get_or_404(app_id)
     app.status = ApplicationStatus.submitted
     app.pending_doc_requests = []
     app.audit_trail.append(AuditEvent(at=_now(), actor="system", action="submitted"))
     app.updated_at = _now()
+    background_tasks.add_task(run_full_pipeline, app)
     return app
 
 
