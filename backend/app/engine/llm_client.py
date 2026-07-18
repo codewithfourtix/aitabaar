@@ -32,20 +32,16 @@ async def _chat(model: str, messages: list[dict], temperature: float) -> str:
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def vision_json(prompt: str, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
-    """One vision call, image + strict JSON-only instructions. Returns raw
-    text — the caller strips markdown fences and json.loads()s it."""
+async def vision_json(prompt: str, images: list[tuple[bytes, str]]) -> str:
+    """One vision call, one or more images (e.g. rendered PDF pages) + strict
+    JSON-only instructions. Returns raw text — the caller strips markdown
+    fences and json.loads()s it. `images` is a list of (bytes, mime_type)."""
     model = os.getenv("OPENROUTER_VISION_MODEL", "google/gemini-2.5-flash-lite")
-    b64 = base64.b64encode(image_bytes).decode("ascii")
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}},
-            ],
-        }
-    ]
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    for image_bytes, mime_type in images:
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        content.append({"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}})
+    messages = [{"role": "user", "content": content}]
     return await _chat(model, messages, temperature=0.0)
 
 

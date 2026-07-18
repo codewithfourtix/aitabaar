@@ -6,18 +6,28 @@ Field names match docs/data-model.md's declared extraction targets, plus
 check; additive, the dashboard renders extracted_fields as a generic
 key-value list so extra keys are harmless).
 
-MVP scope: images only (jpg/png) - no PDF parsing. One retry on failure,
-then the document is marked failed and the pipeline continues; one bad
-document must never kill the whole application.
+Accepts jpg/png photos and PDFs (docs/api.md always allowed pdf; this file
+just hadn't implemented it yet). PDFs are rendered page-by-page to images
+via pymupdf (pure pip package, no system poppler dependency - important for
+a fast Railway deploy) and fed through the same vision call as a photo, so
+a scanned/photographed PDF and a digitally-generated one are handled
+identically. One retry on LLM failure, then the document is marked failed
+and the pipeline continues; one bad document must never kill the whole
+application.
 """
 
 import json
 import logging
 
+import fitz  # pymupdf
+
 from app.engine import llm_client
 from app.models.schemas import Document, DocumentType
 
 logger = logging.getLogger("aitabaar.extraction")
+
+MAX_PDF_PAGES = 6
+PDF_RENDER_DPI = 150
 
 _PROMPTS: dict[DocumentType, str] = {
     DocumentType.cnic: (
@@ -29,13 +39,14 @@ _PROMPTS: dict[DocumentType, str] = {
         "The photo may be angled, low-light, or mix Urdu and English."
     ),
     DocumentType.bank_statement: (
-        "This is a page from a Pakistani bank statement. Extract these fields as "
-        "JSON only, no prose, no markdown fences: "
+        "This is a Pakistani bank statement, possibly spanning several pages. Extract "
+        "these fields as JSON only, no prose, no markdown fences: "
         '{"account_title": string, "avg_monthly_inflow_pkr": number, '
         '"avg_monthly_outflow_pkr": number, "months": integer number of months covered, '
         '"end_balance_pkr": number, "bounced_cheques": integer count of bounced/returned cheques}. '
-        "Return null for any field you cannot read confidently rather than guessing. "
-        "The photo may be angled, low-light, or mix Urdu and English."
+        "Use all pages provided together to compute the averages. Return null for any "
+        "field you cannot read confidently rather than guessing. Pages may be angled, "
+        "low-light, or mix Urdu and English."
     ),
     DocumentType.utility_bill: (
         "This is a photo of a Pakistani utility bill (electricity/gas). Extract these "
@@ -51,6 +62,10 @@ _PROMPTS: dict[DocumentType, str] = {
 _IMAGE_EXTENSIONS = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 
 
+class UnsupportedDocumentError(Exception):
+    pass
+
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -60,12 +75,30 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-def _mime_type(filename: str) -> str | None:
+def _render_pdf_pages(file_bytes: bytes) -> list[tuple[bytes, str]]:
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    try:
+        if len(doc) == 0:
+            raise UnsupportedDocumentError("PDF has no pages")
+        page_count = min(len(doc), MAX_PDF_PAGES)
+        if len(doc) > MAX_PDF_PAGES:
+            logger.warning("PDF has %d pages, only reading the first %d", len(doc), MAX_PDF_PAGES)
+        return [
+            (doc[i].get_pixmap(dpi=PDF_RENDER_DPI).tobytes("png"), "image/png")
+            for i in range(page_count)
+        ]
+    finally:
+        doc.close()
+
+
+def _prepare_images(filename: str, file_bytes: bytes) -> list[tuple[bytes, str]]:
     lower = filename.lower()
     for ext, mime in _IMAGE_EXTENSIONS.items():
         if lower.endswith(ext):
-            return mime
-    return None
+            return [(file_bytes, mime)]
+    if lower.endswith(".pdf"):
+        return _render_pdf_pages(file_bytes)
+    raise UnsupportedDocumentError(f"unsupported file type for '{filename}' (jpg/png/pdf only)")
 
 
 async def extract(document: Document, file_bytes: bytes) -> Document:
@@ -75,18 +108,17 @@ async def extract(document: Document, file_bytes: bytes) -> Document:
         document.status = "extracted"
         return document
 
-    mime_type = _mime_type(document.filename)
-    if mime_type is None:
+    try:
+        images = _prepare_images(document.filename, file_bytes)
+    except Exception as exc:  # noqa: BLE001 - a bad file must not kill the application
         document.status = "failed"
-        document.verification_flags.append(
-            "EXTRACTION_UNSUPPORTED: only jpg/png documents are supported in this MVP"
-        )
+        document.verification_flags.append(f"EXTRACTION_UNSUPPORTED: {exc}")
         return document
 
     last_error: Exception | None = None
     for attempt in range(2):
         try:
-            raw = await llm_client.vision_json(prompt, file_bytes, mime_type)
+            raw = await llm_client.vision_json(prompt, images)
             fields = json.loads(_strip_fences(raw))
             document.extracted_fields = fields
             document.status = "extracted"
