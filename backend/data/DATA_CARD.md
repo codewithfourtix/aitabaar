@@ -6,11 +6,32 @@
 
 No real customer data is used anywhere in this project (see `docs/decisions.md`). We also deliberately rejected scraped alternative data (Easypaisa/JazzCash/POS): no consent basis, no data-sharing agreement, and most Pakistani SMEs stay off POS to stay off the tax record, so representative data doesn't exist to scrape responsibly.
 
+## Provenance of priors
+
+Feature distributions and the base default rate are anchored to published Pakistani figures: SME NPL ~4.9% (Dec 2024, SMEDA/SBP) against a recent high of ~38% (May 2023); SBP SME definition (Small ≤ PKR 150M turnover, Medium PKR 150–800M) and the PKR 10M clean-lending limit; sector and firm-size mix from the Economic Census / SBP SME reviews (~45% of establishments in retail & wholesale trade; ~99% employ 1–10). The base "bad" rate (~20%) is a modeling assumption bounded by the 4.9%–38% range and set higher than the portfolio average to reflect a thin-file applicant pool. Items marked ASSUMPTION in the anchoring sheet (years in business, premises ownership, account age) have no published source and are defensible defaults, not observed values. No real applicant, bureau, or repayment data is used anywhere.
+
+Full source list (see `data/generate.py`'s per-block `[SOURCED]`/`[ASSUMPTION]` comments for exactly which figure anchors which parameter):
+
+| Figure | Value | Source | As of |
+|---|---|---|---|
+| SME NPL / infection ratio | ~4.9% (down from ~38% in May 2023) | SMEDA, *SME Financing Portfolio in Pakistan* (Sep 2024), citing SBP | Dec 2024 |
+| Overall banking-sector NPL | 6.3% | SBP, *Financial Stability Review 2024* | Dec 2024 |
+| Small Enterprise definition | Annual sales turnover ≤ PKR 150M | SBP Prudential Regulations for SME Financing | 2024–25 |
+| Medium Enterprise definition | AST > PKR 150M and ≤ PKR 800M | SBP Prudential Regulations for SME Financing | 2024–25 |
+| Clean (cash-flow, unsecured) lending limit | PKR 10M per SME borrower | SBP amendment to SME R-4 | Aug 2024 |
+| Establishments in retail & wholesale trade | ~45% of all establishments | KSBL policy brief / Economic Census | 2025 |
+| Establishments employing 1–10 persons | 99.06% | SBP SME Financial Review | (structural) |
+| Share of SMEs that borrow formally | ~6.5% | SBP; Karandaaz | 2021–24 |
+
+**Not adopted:** a more recent revision (Micro ≤ PKR 30M; Small > PKR 30M–400M) was flagged in the anchoring sheet as unconfirmed against the latest SBP circular at the time of writing. Per the sheet's own instruction, this dataset uses the established Small ≤150M / Medium 150–800M bands instead. If that revision is later confirmed, the `monthly_revenue_pkr` and `requested_amount_pkr` bounds in `generate.py` should be revisited.
+
+**business_type mapping caveat:** the sourced establishment mix has 5 categories (Retail & Wholesale, Services, Manufacturing, Agriculture, Other) that don't line up 1:1 with this generator's 5 categories (`retail_wholesale`, `food`, `textiles`, `services`, `light_manufacturing`). `retail_wholesale` maps directly (45%=45%); the rest is an interpretive split, not a direct citation — see the `BUSINESS_TYPE_P` comment in `generate.py` for the exact reasoning.
+
 ## Generating process
 
 Each row is built from independent-ish distributions (business type, years in business, revenue, etc.), then a `repaid` (1) / `defaulted` (0) label is drawn from a **latent logit** over a subset of features plus Gaussian noise — never a random coin flip, which would teach the model nothing and make SHAP output garbage.
 
-Label drivers, in order of assumed importance:
+Label drivers, in order of assumed importance (unchanged by the 1.3 reanchoring — this ranking is consistent with credit literature and doesn't need a published figure):
 1. `debt_burden_ratio` (existing installment / bank inflow) high → worse
 2. `bounced_cheques` high → worse (payment-discipline proxy)
 3. `net_cashflow_pkr` (inflow − outflow) low/negative → worse
@@ -18,26 +39,28 @@ Label drivers, in order of assumed importance:
 5. `turnover_to_loan_ratio` (inflow vs. requested amount) low → worse (asking for too much relative to the business)
 6. `account_age_months` low → worse
 
+The label's base rate (intercept only — driver coefficients unchanged) is tuned so ~80% of rows repay / ~20% default, per the anchoring sheet's target — deliberately between the current clean SME-portfolio NPL (~4.9%) and the May-2023 stressed peak (~38%), and higher than the portfolio average because Aitabaar's target segment (thin-file/previously-unbanked SMEs) is riskier than already-banked firms. **This is a modeling assumption bounded by the sourced range, not a claimed real default rate.**
+
 Genuine noise is added so the trained model's AUC lands in the 0.78–0.85 band (see `models/METRICS.md`) rather than a suspiciously perfect ~0.99 — a dataset that trivially separable would be a giveaway that it's a toy, not a credible proxy.
 
 ## Feature ranges
 
 | Feature | Range / distribution |
 |---|---|
-| `business_type` | retail_wholesale (45%), food (15%), textiles (15%), services (15%), light_manufacturing (10%) |
-| `years_in_business` | 1–25, right-skewed (gamma) |
-| `registered` | bool, ~35% true |
-| `monthly_revenue_pkr` | lognormal, median ~600k, ~100k–15m |
-| `employees` | 1–40, correlated with revenue |
-| `premises_owned` | bool, ~30% true |
-| `years_at_premises` | 0–20, capped at `years_in_business` |
+| `business_type` | retail_wholesale (45%), food (8%), textiles (12%), services (27%), light_manufacturing (8%) — see provenance section above |
+| `years_in_business` | 1–25, right-skewed (gamma), median ~6 — ASSUMPTION |
+| `registered` | bool, ~40% true — ASSUMPTION, bounded |
+| `monthly_revenue_pkr` | lognormal, median ~650k, 100k–60m (thin tail into medium-enterprise territory) |
+| `employees` | 1–50, ~99% in 1–10, rare tail to ~40–50 for medium-scale-revenue rows |
+| `premises_owned` | bool, ~37% true — ASSUMPTION |
+| `years_at_premises` | 0–20, capped at `years_in_business` — ASSUMPTION |
 | `avg_monthly_inflow_pkr` | ~0.5–0.9× `monthly_revenue_pkr` |
 | `avg_monthly_outflow_pkr` | ~0.7–0.98× `avg_monthly_inflow_pkr` |
-| `bounced_cheques` | 0–4, skewed to 0 |
-| `account_age_months` | 6–240 |
+| `bounced_cheques` | 0–4, skewed to 0 — ASSUMPTION, risk driver |
+| `account_age_months` | 6 months – `years_in_business`×12 (capped, correlated) — ASSUMPTION |
 | `has_existing_loan` | bool, ~25% true |
 | `existing_installment_pkr` | 0 if no loan, else 5–25% of `monthly_revenue_pkr` |
-| `requested_amount_pkr` | lognormal, median ~1.5m, 500k–7.5m |
+| `requested_amount_pkr` | lognormal, median ~2m, 500k–10m (capped at the SBP clean-lending limit) |
 
 ## Fields the real intake flow doesn't collect (yet)
 

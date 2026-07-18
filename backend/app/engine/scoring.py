@@ -67,10 +67,53 @@ for _bt in BUSINESS_TYPES:
 
 _TIER_MULTIPLIER = {"A": 3.0, "B": 2.0, "C": 1.0, "D": 0.5}
 
+# Every non-derived, document-sourced feature and where it's read from.
+# Drives BOTH _build_input_row's real-vs-median fallback AND data
+# completeness — dynamically, not a hardcoded "6 missing fields" list, so a
+# field that starts resolving (intake collects it) auto-improves
+# completeness with no code change here. business_type and
+# requested_amount_pkr are deliberately excluded: they come from the
+# Applicant/Application objects directly, not document extraction, so they
+# are structurally always present rather than an extraction outcome.
+_FIELD_SOURCES: dict[str, tuple[DocumentType, str]] = {
+    "years_in_business": (DocumentType.business_questionnaire, "years_in_business"),
+    "monthly_revenue_pkr": (DocumentType.business_questionnaire, "monthly_revenue_pkr"),
+    "employees": (DocumentType.business_questionnaire, "employees"),
+    "registered": (DocumentType.business_questionnaire, "registered"),
+    "premises_owned": (DocumentType.business_questionnaire, "premises_owned"),
+    "years_at_premises": (DocumentType.business_questionnaire, "years_at_premises"),
+    "has_existing_loan": (DocumentType.business_questionnaire, "has_existing_loan"),
+    "existing_installment_pkr": (DocumentType.business_questionnaire, "existing_installment_pkr"),
+    "avg_monthly_inflow_pkr": (DocumentType.bank_statement, "avg_monthly_inflow_pkr"),
+    "avg_monthly_outflow_pkr": (DocumentType.bank_statement, "avg_monthly_outflow_pkr"),
+    "bounced_cheques": (DocumentType.bank_statement, "bounced_cheques"),
+    "account_age_months": (DocumentType.bank_statement, "account_age_months"),
+}
+
 
 def _doc_fields(application: Application, doc_type: DocumentType) -> dict:
     doc = next((d for d in application.documents if d.type == doc_type), None)
     return doc.extracted_fields if doc else {}
+
+
+def _field_value(application: Application, field_name: str) -> tuple[float, bool]:
+    """(value, is_real) for one _FIELD_SOURCES entry. A field extracted as
+    null counts as NOT real - extraction prompts explicitly return null for
+    anything not read confidently (extraction.py), so a present-but-null key
+    is exactly as unreliable as an absent one."""
+    doc_type, key = _FIELD_SOURCES[field_name]
+    value = _doc_fields(application, doc_type).get(key)
+    if value is not None:
+        return value, True
+    return MEDIANS[field_name], False
+
+
+def _completeness_band(data_completeness: float) -> str:
+    if data_completeness >= 0.8:
+        return "HIGH"
+    if data_completeness >= 0.6:
+        return "MEDIUM"
+    return "LOW"
 
 
 def _match_business_type(business_type_text: str | None) -> str | None:
@@ -83,38 +126,34 @@ def _match_business_type(business_type_text: str | None) -> str | None:
     return None
 
 
-def _build_input_row(application: Application) -> dict:
-    """Real data where we have it; documented median fallback where we
-    don't (registered, premises_owned, years_at_premises, account_age_months,
-    has_existing_loan, existing_installment_pkr aren't collected by the
-    current intake flow - see data/DATA_CARD.md)."""
-    bank = _doc_fields(application, DocumentType.bank_statement)
-    questionnaire = _doc_fields(application, DocumentType.business_questionnaire)
+def _build_input_row(application: Application) -> tuple[dict, float, list[str]]:
+    """Real data where we have it; median fallback where we don't, tracked
+    dynamically via _FIELD_SOURCES (see data/DATA_CARD.md for why several
+    fields are still median-only in practice today). Returns
+    (feature row, data_completeness 0-1, defaulted field names)."""
+    values: dict[str, float] = {}
+    defaulted: list[str] = []
+    for field_name in _FIELD_SOURCES:
+        value, is_real = _field_value(application, field_name)
+        values[field_name] = value
+        if not is_real:
+            defaulted.append(field_name)
 
-    inflow = bank.get("avg_monthly_inflow_pkr", MEDIANS["avg_monthly_inflow_pkr"])
-    outflow = bank.get("avg_monthly_outflow_pkr", MEDIANS["avg_monthly_outflow_pkr"])
-    existing_installment = MEDIANS["existing_installment_pkr"]
+    inflow = values["avg_monthly_inflow_pkr"]
+    outflow = values["avg_monthly_outflow_pkr"]
+    existing_installment = values["existing_installment_pkr"]
 
     row = {
         "business_type": _match_business_type(application.applicant.business_type) or "__unknown__",
-        "years_in_business": questionnaire.get("years_in_business", MEDIANS["years_in_business"]),
-        "registered": MEDIANS["registered"],
-        "monthly_revenue_pkr": questionnaire.get("monthly_revenue_pkr", MEDIANS["monthly_revenue_pkr"]),
-        "employees": questionnaire.get("employees", MEDIANS["employees"]),
-        "premises_owned": MEDIANS["premises_owned"],
-        "years_at_premises": MEDIANS["years_at_premises"],
-        "avg_monthly_inflow_pkr": inflow,
-        "avg_monthly_outflow_pkr": outflow,
+        **values,
         "net_cashflow_pkr": inflow - outflow,
-        "bounced_cheques": bank.get("bounced_cheques", MEDIANS["bounced_cheques"]),
-        "account_age_months": MEDIANS["account_age_months"],
-        "has_existing_loan": MEDIANS["has_existing_loan"],
-        "existing_installment_pkr": existing_installment,
         "requested_amount_pkr": application.requested_amount_pkr,
     }
     row["debt_burden_ratio"] = existing_installment / max(inflow, 1)
     row["turnover_to_loan_ratio"] = inflow / max(application.requested_amount_pkr / 12, 1)
-    return row
+
+    data_completeness = 1 - (len(defaulted) / len(_FIELD_SOURCES))
+    return row, data_completeness, defaulted
 
 
 def _tier_for(p_repay: float) -> str:
@@ -136,7 +175,7 @@ def _recommended_amount(monthly_revenue_pkr: float, risk_tier: str, requested_am
 
 
 def score(application: Application) -> ScoreResult:
-    row = _build_input_row(application)
+    row, data_completeness, defaulted_fields = _build_input_row(application)
     X = build_features(pd.DataFrame([row]))
 
     p_repay = float(MODEL.predict_proba(X)[0, 1])
@@ -164,4 +203,7 @@ def score(application: Application) -> ScoreResult:
         factors=factors,
         rationale="",  # filled in by rationale.build_brief
         inconsistency_flags=[],
+        data_completeness=round(data_completeness, 3),
+        defaulted_fields=defaulted_fields,
+        completeness_band=_completeness_band(data_completeness),
     )

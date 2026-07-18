@@ -47,6 +47,12 @@ def verify(application: Application) -> list[str]:
     ):
         if doc is None:
             flags.append(f"[HIGH] MISSING_DOCUMENT: no {doc_type.value} on file")
+        elif doc.status == "failed":
+            # Extraction failed twice (extraction.py) and gave up — a required
+            # doc with no usable fields must not pass through silently.
+            msg = f"[HIGH] EXTRACTION_FAILED: {doc_type.value} could not be read"
+            flags.append(msg)
+            doc.verification_flags.append(msg)
 
     if cnic_doc and cnic_doc.extracted_fields.get("cnic"):
         cnic_number = str(cnic_doc.extracted_fields["cnic"])

@@ -15,7 +15,7 @@ All bodies are JSON unless noted. All timestamps are UTC ISO-8601. Amounts are i
 | 4 | POST | `/applications` | bot, portal | ✅ live |
 | 5 | POST | `/applications/{id}/documents` | bot, portal | ✅ live (real: persists file, runs real extraction during `/score`) |
 | 6 | POST | `/applications/{id}/submit` | bot, portal | ✅ live |
-| 7 | POST | `/applications/{id}/score` | dashboard (demo trigger) | ✅ live (real engine: extract → verify → score → explain) |
+| 7 | POST | `/applications/{id}/score` | dashboard (demo trigger) | ✅ live (real engine: extract → verify → score → decide → explain) |
 | 8 | POST | `/applications/{id}/decision` | dashboard | ✅ live |
 | 9 | GET | `/demo/reset` | judging/demo | ✅ live |
 
@@ -108,12 +108,43 @@ No body. Triggers the engine. → `200` `Application` with `status: "scored"` an
       {"feature": "inflow_volatility", "label": "Seasonal dip in deposits (Ramzan months)", "impact": -0.06, "direction": "negative"}
     ],
     "rationale": "Stable retail business with consistent deposits...",
-    "inconsistency_flags": []
+    "inconsistency_flags": [],
+    "recommended_action": "APPROVE",
+    "decision_reasons": ["Risk tier B — default policy is APPROVE."],
+    "policy_overridden": false,
+    "override_reason": null,
+    "data_completeness": 1.0,
+    "defaulted_fields": [],
+    "completeness_band": "HIGH"
   }
 }
 ```
 
-Real engine: extraction (Gemini vision via OpenRouter) → verification (deterministic + `rapidfuzz`) → scoring (XGBoost, trained on `data/synthetic_sme.csv`) → rationale (template, LLM-enhanced). One `AuditEvent` per stage. `risk_tier` ∈ `A | B | C | D`. If any stage throws, `status` becomes `failed` and the reason lands in `audit_trail` — the app is still returned (never hangs), just without a `score`.
+Real engine: extraction (Gemini vision via OpenRouter) → verification (deterministic + `rapidfuzz`) → scoring (XGBoost, trained on `data/synthetic_sme.csv`) → **decision policy** (`app/engine/policy.py`, deterministic, reads `risk_tier` + verification flags only) → rationale (template, LLM-enhanced). One `AuditEvent` per stage. `risk_tier` ∈ `A | B | C | D`. If any stage throws, `status` becomes `failed` and the reason lands in `audit_trail` — the app is still returned (never hangs), just without a `score`.
+
+**Decision policy fields** (`recommended_action`, `decision_reasons`, `policy_overridden`,
+`override_reason`) are a recommendation only — they never change `repayment_probability` or
+`risk_tier`, and they never move `Application.status`; only `POST /applications/{id}/decision`
+does that (§8). Rules: any `HIGH`-severity (or unrecognized-severity) verification flag forces
+`recommended_action: "REVIEW"` with `policy_overridden: true` and `override_reason` naming the
+flag(s) — this can never be `"APPROVE"`. With no `HIGH`/unrecognized flag, a tier that would
+otherwise approve (A/B) is soft-downgraded to `"REVIEW"` with `policy_overridden: false` (a
+nudge, not an override) if either a `MEDIUM` flag is present **or** `data_completeness` is
+below 0.6 — both reasons are listed in `decision_reasons` if both apply. Otherwise: tier A/B →
+`"APPROVE"`, tier C → `"REVIEW"`, tier D → `"DECLINE"`.
+
+**Data completeness fields** (`data_completeness`, `defaulted_fields`, `completeness_band`) —
+set by `app/engine/scoring.py`, read (not written) by the policy layer. `data_completeness` is
+the fraction (0–1) of the model's document-sourced input fields that came from a real extracted
+value rather than a training-set median fallback; `defaulted_fields` names which ones fell
+back; `completeness_band` is `"HIGH"` (≥0.8), `"MEDIUM"` (≥0.6), or `"LOW"` (<0.6). Fields
+sourced from the applicant/application record directly (business type, requested amount) are
+not counted — only fields that depend on document extraction are.
+
+**Offline/deterministic mode:** setting env var `AITABAAR_OFFLINE=1` on the backend makes the
+rationale stage always use the template brief and skip the live LLM call (no network, no API
+key needed) for the normal upload/score flow. `GET /demo/reset` (§9) always behaves this way
+regardless of that env var, so a judging run never depends on a live LLM call.
 
 ## 8. `POST /applications/{id}/decision`
 
@@ -134,7 +165,7 @@ On `request_docs`, `requested_doc_types` is stored on the application as `pendin
 
 ## 9. `GET /demo/reset`
 
-No params. Clears the store and re-seeds the 3 demo applicants, running each through the real pipeline (not canned data) so the queue shows genuinely computed scores. → `200` array of the 3 scored `Application`s. Plain GET so it's one click before a judging run.
+No params. Clears the store and re-seeds the 3 demo applicants, running each through the real pipeline (not canned data) so the queue shows genuinely computed scores. Rationale always uses the template brief here (no live LLM call), so results are identical every run and need no network or API key. → `200` array of the 3 scored `Application`s. Plain GET so it's one click before a judging run.
 
 ---
 

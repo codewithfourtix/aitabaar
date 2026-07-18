@@ -52,8 +52,11 @@ async def demo_reset():
     """Re-seeds the 3 demo applicants (clean approve / borderline / fraud
     flag, docs/decisions.md #12) and runs each through the real pipeline so
     the queue shows genuinely computed scores/briefs. Plain GET so it's a
-    single click before a judging run — no state to protect here."""
+    single click before a judging run — no state to protect here.
+    force_offline=True: this path must be deterministic and network-free
+    regardless of AITABAAR_OFFLINE or whether an API key happens to be set,
+    so it always uses the template brief, never the live LLM."""
     apps = mock_data.reset()
     for demo_app in apps:
-        await applications.run_full_pipeline(demo_app)
+        await applications.run_full_pipeline(demo_app, force_offline=True)
     return apps
