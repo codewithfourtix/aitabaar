@@ -1,8 +1,36 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import QueueView from './pages/QueueView';
 import ApplicationDetail from './pages/ApplicationDetail';
-import { LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard, RotateCcw, Loader2 } from 'lucide-react';
+import { demoReset } from './services/api';
+
+function DemoResetButton() {
+  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
+  const handleReset = async () => {
+    setBusy(true);
+    try {
+      await demoReset();
+      navigate('/');
+    } catch (err) {
+      console.error('demo reset failed', err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      onClick={handleReset}
+      disabled={busy}
+      title="Re-seed the 3 demo applicants through the real pipeline"
+      className="glass-panel text-sm flex items-center gap-2"
+      style={{ padding: '0.4rem 0.9rem', cursor: busy ? 'wait' : 'pointer', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}>
+      {busy ? <Loader2 className="w-4 h-4" style={{ animation: 'spin 1s linear infinite' }} /> : <RotateCcw className="w-4 h-4" />}
+      Reset Demo
+    </button>
+  );
+}
 
 function App() {
   return (
@@ -14,7 +42,7 @@ function App() {
             <span style={{ fontSize: '1.25rem', fontWeight: 600 }}>Aitbaar — Loan Officer Dashboard</span>
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-secondary text-sm">Loan Officer Portal</span>
+            <DemoResetButton />
           </div>
         </header>
 
