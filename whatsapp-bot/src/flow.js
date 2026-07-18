@@ -60,6 +60,7 @@ async function statusReply(s, phone) {
     case 'processing':
       return t('statusInReview', s.lang, vars);
     case 'scored':
+    case 'failed': // internal failure is officer-side info; applicant just sees "in review"
       return t('statusScored', s.lang, vars); // NEVER reveal score/tier/factors
     case 'needs_docs': {
       const docType = (app.pending_doc_requests && app.pending_doc_requests[0]) || 'bank_statement';
