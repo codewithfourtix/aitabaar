@@ -4,6 +4,7 @@ Why things are the way they are. Add a row when a real decision is made (group c
 
 | # | Date | Decision | Why | Owner |
 |---|---|---|---|---|
+| 17 | 2026-07-18 | Bot ships as a Docker container on Railway with a **volume at `/data`** for the WhatsApp session; linking via a web **`/qr`** page | session survives redeploys (scan once); no terminal access needed on Railway | Ali Z |
 | 16 | 2026-07-18 | Official spelling **"Aitbaar" (اعتبار)** in all user-facing text and deliverables (repo name stays `aitabaar`) | matches submitted Team Information sheet | team |
 | 15 | 2026-07-18 | WhatsApp channel = **whatsapp-web.js on Node.js**, not Meta Cloud API | zero per-message cost for prototype; production rides UBL's existing WhatsApp Business number anyway | team (deliverables sheet) |
 | 14 | 2026-07-18 | DB/storage = **Supabase** (Postgres + Storage); dashboard deploys on **Vercel**; backend stays FastAPI on Railway | per submitted Prototype Blueprint | team |
