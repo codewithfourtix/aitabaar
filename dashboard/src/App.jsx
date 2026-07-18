@@ -11,7 +11,7 @@ function App() {
         <header className="glass-panel container flex justify-between items-center" style={{ margin: '1rem auto', padding: '1rem 2rem', borderBottom: '1px solid var(--border-color)' }}>
           <Link to="/" className="flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             <LayoutDashboard className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <span style={{ fontSize: '1.25rem', fontWeight: 600 }}>Aitabaar Dashboard</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 600 }}>Aitbaar — Loan Officer Dashboard</span>
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-secondary text-sm">Loan Officer Portal</span>
