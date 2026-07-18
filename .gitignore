@@ -27,6 +27,9 @@ build/
 *.pkl
 *.joblib
 models/*.json
+# ...except the trained artifacts we actually ship (deploy shouldn't depend on retraining at boot)
+!backend/models/aitbaar_xgb.json
+!backend/models/features.json
 data/raw/
 data/uploads/
 
