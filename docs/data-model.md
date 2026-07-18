@@ -12,6 +12,7 @@ Source: `backend/app/models/schemas.py`. Everything below is what the API actual
 | `applicant` | Applicant | embedded |
 | `requested_amount_pkr` | int | what the applicant asked for |
 | `documents` | Document[] | uploaded docs + extraction results |
+| `pending_doc_requests` | DocumentType[] | set by `request_docs` decision, cleared on resubmit; bot asks for `[0]` |
 | `score` | ScoreResult \| null | null until engine runs |
 | `audit_trail` | AuditEvent[] | append-only, never edited |
 | `created_at`, `updated_at` | datetime | UTC |
