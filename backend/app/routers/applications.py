@@ -6,7 +6,7 @@ team swaps the internals (DB + real engine) without changing the contract.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app import mock_data
 from app.models.schemas import (
@@ -15,6 +15,8 @@ from app.models.schemas import (
     ApplicationStatus,
     AuditEvent,
     DecisionRequest,
+    Document,
+    DocumentType,
 )
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -32,10 +34,12 @@ def _get_or_404(app_id: str) -> Application:
 
 
 @router.get("", response_model=list[Application])
-def list_applications(status: ApplicationStatus | None = None):
+def list_applications(status: ApplicationStatus | None = None, phone: str | None = None):
     apps = list(mock_data.APPLICATIONS.values())
     if status is not None:
         apps = [a for a in apps if a.status == status]
+    if phone is not None:
+        apps = [a for a in apps if a.applicant.phone == phone]
     return sorted(apps, key=lambda a: a.created_at, reverse=True)
 
 
@@ -63,10 +67,31 @@ def create_application(body: ApplicationCreate):
     return app
 
 
+@router.post("/{app_id}/documents", response_model=Document, status_code=201)
+async def upload_document(app_id: str, type: DocumentType = Form(...), file: UploadFile = File(...)):
+    """Mock mode: stores metadata only, file bytes are read and discarded.
+    Real mode: persist to Supabase Storage and run extraction."""
+    app = _get_or_404(app_id)
+    await file.read()
+    doc = Document(
+        id=f"DOC-{sum(len(a.documents) for a in mock_data.APPLICATIONS.values()) + 1:03d}",
+        type=type,
+        filename=file.filename or f"{type.value}.bin",
+        uploaded_at=_now(),
+    )
+    app.documents.append(doc)
+    app.audit_trail.append(
+        AuditEvent(at=_now(), actor="system", action="document_uploaded", detail=type.value)
+    )
+    app.updated_at = _now()
+    return doc
+
+
 @router.post("/{app_id}/submit", response_model=Application)
 def submit_application(app_id: str):
     app = _get_or_404(app_id)
     app.status = ApplicationStatus.submitted
+    app.pending_doc_requests = []
     app.audit_trail.append(AuditEvent(at=_now(), actor="system", action="submitted"))
     app.updated_at = _now()
     return app
@@ -97,6 +122,8 @@ def make_decision(app_id: str, body: DecisionRequest):
     if body.action not in status_map:
         raise HTTPException(status_code=422, detail=f"Unknown action: {body.action}")
     app.status = status_map[body.action]
+    if body.action == "request_docs":
+        app.pending_doc_requests = body.requested_doc_types
     app.audit_trail.append(
         AuditEvent(at=_now(), actor=body.officer, action=body.action, detail=body.note)
     )

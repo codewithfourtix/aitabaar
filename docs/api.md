@@ -33,7 +33,7 @@ Dashboard queue. Query params (all optional):
 | Param | Type | Meaning |
 |---|---|---|
 | `status` | `ApplicationStatus` | filter by status |
-| `phone` | string | filter by applicant phone (bot uses this to find "my application") |
+| `phone` | string | exact match on applicant phone, E.164 (bot uses this to find "my application") |
 
 → `200` — array of full `Application` objects (see [data-model.md](data-model.md)), newest first.
 
@@ -126,6 +126,8 @@ Officer action. Body (`DecisionRequest`):
 ```
 
 `action` ∈ `approve | reject | request_docs`. → `200` `Application` with status `approved | rejected | needs_docs`, audit event appended. → `422` on unknown action.
+
+On `request_docs`, `requested_doc_types` is stored on the application as `pending_doc_requests` (cleared when the applicant resubmits). The bot reads `pending_doc_requests[0]` to ask for exactly one item.
 
 ---
 

@@ -46,10 +46,12 @@ START → LANGUAGE → CONSENT (includes full doc checklist) → QUESTIONS (5) �
 
 ## Implementation notes
 
-- whatsapp-web.js session: persist auth locally (`LocalAuth`), session dir is gitignored. The bot is a long-running Node process — no webhook, no tunnel.
-- State store: in-memory `{phone: {state, app_id, draft}}` — resets on restart, acceptable for demo (decisions.md #7 fallback: Redis only if restarts bite).
-- Media: download incoming media via whatsapp-web.js, forward to backend as multipart (`POST .../documents`).
-- Status change notification: bot polls, or demo-triggers manually; backend→bot push is PLANNED.
+- **Deployment: Docker on Railway with a volume.** The container runs Chromium + whatsapp-web.js; `LocalAuth` stores the session at `SESSION_DIR=/data/wwebjs_auth` on a Railway volume, so **redeploys do not log the number out**. Linking is done in the browser: open the service's `/qr` page and scan once. Runbook: `whatsapp-bot/README.md`.
+- The bot is a long-running Node process — no webhook, no tunnel, no Meta app.
+- State store: in-memory `{phone: {state, lang, appId, data}}` — resets on restart, acceptable for demo (Redis only if restarts bite).
+- Media: download incoming media via whatsapp-web.js, forward to backend as multipart (`POST .../documents`). Questionnaire answers upload as a JSON document (`type=business_questionnaire`).
+- One-item re-request: bot reads `pending_doc_requests[0]` from the application (set by the officer's `request_docs` decision).
+- Status change notification: bot polls every 30s for submitted applications and pushes approved/rejected/needs-docs outcomes; backend→bot push is PLANNED.
 - Demo consent + checklist message is the judges' first screen — make the Urdu copy excellent.
 
 ## Demo path (from the submitted blueprint, ≤3 min)

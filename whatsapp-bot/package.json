@@ -1,0 +1,22 @@
+{
+  "name": "aitbaar-whatsapp-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aitbaar applicant channel — WhatsApp bot (whatsapp-web.js), Urdu/English",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "form-data": "^4.0.0",
+    "qrcode": "^1.5.3",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}

@@ -90,6 +90,9 @@ class Application(BaseModel):
     applicant: Applicant
     requested_amount_pkr: int
     documents: list[Document] = Field(default_factory=list)
+    # Doc types the officer asked for via request_docs; cleared on resubmit.
+    # The bot reads [0] to ask the applicant for exactly one item.
+    pending_doc_requests: list[DocumentType] = Field(default_factory=list)
     score: ScoreResult | None = None
     audit_trail: list[AuditEvent] = Field(default_factory=list)
     created_at: datetime
