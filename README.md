@@ -1,82 +1,61 @@
-# Aitabaar (اعتبار) — Trust
+# Aitbaar (اعتبار) — Trust
 
-AI-assisted SME loan origination platform. Built for the **UBL National Innovation Hackathon 2026**.
+**AI-assisted SME loan origination.** Built for the UBL National Innovation Hackathon 2026 (theme: Artificial Intelligence in Banking).
 
-Small businesses in Pakistan struggle to access formal credit: thin credit files, paper-heavy processes, repeat branch visits. Aitabaar lets an SME owner apply from home — via a web portal or a WhatsApp chatbot (English/Urdu) — and gives the loan officer an explainable AI credit brief instead of a pile of documents.
+Pakistan has ~5M SMEs producing 40% of GDP, yet only ~155k hold a bank loan. The barrier is friction: 3–5 branch trips because the document checklist is *discovered* by the officer, never declared; 40–60 pages read by hand per file; weeks to a decision. Aitbaar kills that loop:
 
-## How it works
+- The SME owner applies **on WhatsApp, in Urdu**, from behind the counter — full document checklist up front, explicit consent, zero branch visits.
+- A real AI engine runs **extract → verify → score → explain**: Gemini vision extraction, deterministic cross-document fraud flags, an XGBoost repayment model trained on a documented 1,000-row synthetic Pakistani SME dataset, SHAP factor attribution, and an LLM brief written *from the SHAP output only*.
+- The **loan officer reads one page, not fifty** — score /100, risk tier, factors, red flags, recommended range — then approves, declines, or requests exactly **one** missing item. Every step lands in an audit trail.
+
+## Architecture
 
 ```
-Applicant (Web Portal / WhatsApp Bot)
-        │  CNIC, bank statements, utility bills, business questionnaire
-        ▼
-AI Engine — 4 stages: Extraction → Verification → Scoring → Rationale
-        │  vision LLM doc parsing · XGBoost repayment probability · SHAP explainability
-        ▼
-Loan Officer Dashboard — application queue, AI credit brief, audit trail, request docs
+SME owner ──WhatsApp (Urdu)──► whatsapp-bot (Node, whatsapp-web.js, Docker+Railway volume)
+                                    │ REST
+                                    ▼
+                    backend (FastAPI on Railway) ── engine: extract → verify → score → explain
+                                    ▲ REST                    (Gemini vision · rules+rapidfuzz ·
+                                    │                          XGBoost+SHAP · LLM brief)
+Loan officer ──browser──► dashboard (React on Vercel)
 ```
 
-## Repo structure
-
-| Folder | What | Owner |
+| Folder | What | Runs on |
 |---|---|---|
-| `backend/` | FastAPI — API + AI engine (extraction, verification, scoring, rationale) | Anas, Obaid |
-| `whatsapp-bot/` | WhatsApp applicant channel (webhook service, English/Urdu) | Ali Zulfiqar |
-| `dashboard/` | React loan officer dashboard | Ali Ateeb |
-| `portal/` | Applicant web portal | TBD |
-| `docs/` | Architecture, API contract, canvases, pitch material | abay + all |
+| `backend/` | FastAPI API + AI engine, trained model in `models/`, dataset + generator in `data/` | Railway (Dockerfile) |
+| `whatsapp-bot/` | Applicant channel; session persists on a volume, links via a web `/qr` page | Railway (Dockerfile + volume) |
+| `dashboard/` | Loan officer queue + one-page credit brief + audit trail | Vercel |
+| `docs/` | **Source of truth**: API contract, data model, specs, decision log, demo runbook | — |
 
-## Branch workflow
-
-- **`stage`** — integration branch. All feature branches merge here; everything is tested on `stage`.
-- **`main`** — stable. Only updated by merging `stage` when things are verified working.
-
-```
-your-name/feature  ──merge──►  stage  ──(when stable)──►  main
-```
-
-Branch naming: `<name>/<feature>`, e.g. `ali/whatsapp-flow`, `anas/scoring-engine`.
-
-## Running locally
-
-Each service has its own README. Quick start:
+## Quick start (local)
 
 ```bash
-# Backend API — real engine (extraction/verification/scoring/rationale), no DB required
-cd backend
-python -m venv .venv && source .venv/Scripts/activate  # Windows Git Bash; use .venv/bin/activate on macOS/Linux
-pip install -r requirements.txt
+# 1. Backend (in-memory store, seeds 3 demo applicants; OPENROUTER_API_KEY optional — falls back to templates)
+cd backend && pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
-# WhatsApp bot
-cd whatsapp-bot
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8001
+# 2. Dashboard
+cd dashboard && npm install && npm run dev        # http://localhost:5173
+
+# 3. WhatsApp bot (needs a phone to scan /qr once)
+cd whatsapp-bot && npm install && npm start       # http://localhost:8001/qr
+
+# End-to-end test without WhatsApp (drives the real bot state machine against the API):
+cd whatsapp-bot && node test/e2e.js
 ```
 
-Copy `.env.example` to `.env` in each service folder and fill in keys (never commit `.env`). The backend works without `OPENROUTER_API_KEY` set — extraction/brief stages fall back to templates instead of crashing — but real vision extraction needs it.
+`GET /demo/reset` re-seeds the three demo files (clean approve / borderline / name-mismatch fraud flag) through the real pipeline.
 
-The trained model (`backend/models/aitbaar_xgb.json`, `features.json`) ships committed, so a fresh clone runs immediately. To regenerate it: `python data/generate.py && python models/train.py` (from `backend/`).
+## Deploy + demo
 
-On boot the backend seeds and scores 3 demo applicants (clean approve / borderline / name-mismatch fraud flag). Hit `GET /demo/reset` any time to re-seed and re-score them — handy right before a judging run.
+Follow [`docs/demo-runbook.md`](docs/demo-runbook.md) — setup is ~30 minutes on Railway + Vercel free tiers.
 
-## API contract
+## Team & workflow
 
-The dashboard and bot build against the REST API defined in [`docs/api.md`](docs/api.md) and `backend/app/models/schemas.py`. **Change the contract there first, then tell the team.** Mock data is served by the backend so frontend work never blocks on the AI engine.
+Team Aitbaar (Lahore): Muhammad Anas Tahir (lead, AI engine), Muhammad Obaidullah (AI engine), Ali Ateeb (dashboard), Ali Zulfiqar (WhatsApp bot).
 
-## Deployment
+`main` = stable · `stage` = integration (everything merges here first) · branches `name/feature`. Contract changes touch `backend/app/models/schemas.py` + `docs/api.md` in the same commit. See [`docs/git-workflow.md`](docs/git-workflow.md).
 
-Railway — one service per folder (set the service root directory to `backend/`, `whatsapp-bot/`, etc.).
+## Honesty notes (also stated in the deliverables)
 
-### Deploying the backend to Railway (step by step)
-
-1. Go to [railway.app](https://railway.app), sign in (GitHub login is easiest), and create a project: **New Project → Deploy from GitHub repo** → pick this repo (`codewithfourtix/aitabaar`). Authorize Railway's GitHub app if prompted.
-2. Railway will try to build the whole monorepo — tell it to only build the backend: open the new service → **Settings → Root Directory** → set to `backend`.
-3. Same **Settings** tab → **Build**: Railway auto-detects Python from `requirements.txt`; the default build command is fine. **Deploy → Start Command**, set it to:
-   `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. **Variables** tab → add every backend key from `.env.example`: `OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL`, `OPENROUTER_TEXT_MODEL`, `DASHBOARD_ORIGIN` (set this to your deployed dashboard's Vercel URL once that exists, e.g. `https://aitabaar.vercel.app`). Leave `DATABASE_URL` empty — no DB for the demo.
-5. **Settings → Networking → Generate Domain** to get a public `https://....up.railway.app` URL. This is the URL to send Ali Zulfiqar (`BACKEND_API_URL`) and Ali Ateeb (`VITE_API_URL`).
-6. Push to `stage` (never `main`) — Railway redeploys automatically on every push to the branch you connected. Pick `stage` as the deploy branch in **Settings → Source**.
-7. Sanity check after each deploy: `GET https://<your-url>/health` should return `{"status": "ok", ...}`, then `GET /demo/reset` to confirm the engine runs on Railway's infra (not just locally).
-
-One thing to know: the in-memory store resets on every redeploy/restart — don't redeploy in the window right before or during a demo; use `/demo/reset` instead if you need fresh state.
+Synthetic data only — no real customer data anywhere. Model metrics (`backend/models/METRICS.md`, AUC 0.778) prove the pipeline works end-to-end, not real-world predictive power; the remedy is a bank pilot on real files. Core banking (Temenos) integration is mocked. The AI recommends; the officer decides.

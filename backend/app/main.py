@@ -34,6 +34,9 @@ app.add_middleware(
         os.getenv("DASHBOARD_ORIGIN", "http://localhost:5173"),
         "http://localhost:3000",
     ],
+    # Any Vercel preview/prod deployment works without extra env config —
+    # one less thing to break during demo setup (hackathon scope, no auth).
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

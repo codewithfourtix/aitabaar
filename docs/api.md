@@ -93,6 +93,8 @@ File persists to local disk (no Supabase for the demo). Extraction runs later du
 
 No body. Applicant says "done uploading". → `200` `Application` with `status: "submitted"`, audit event appended.
 
+**The engine pipeline auto-runs as a background task after submit** — the response returns immediately, then the application moves `processing → scored` (or `failed`) on its own within ~60s. `POST /score` remains as the manual (re-)trigger for the dashboard.
+
 ## 7. `POST /applications/{id}/score`
 
 No body. Triggers the engine. → `200` `Application` with `status: "scored"` and `score` filled:

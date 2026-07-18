@@ -50,7 +50,17 @@ async function uploadIncomingMedia(msg, s, docType) {
 }
 
 async function statusReply(s, phone) {
-  const app = s.appId ? await api.getApplication(s.appId) : await api.findByPhone(phone);
+  let app;
+  try {
+    app = s.appId ? await api.getApplication(s.appId) : await api.findByPhone(phone);
+  } catch (err) {
+    // Application gone (e.g. /demo/reset wiped the store) — recover cleanly
+    if (err.response && err.response.status === 404) {
+      sessions.delete(phone);
+      return t('noApplication', s.lang);
+    }
+    throw err;
+  }
   if (!app) return t('noApplication', s.lang);
   const vars = { ref: app.id };
   switch (app.status) {
@@ -60,6 +70,7 @@ async function statusReply(s, phone) {
     case 'processing':
       return t('statusInReview', s.lang, vars);
     case 'scored':
+    case 'failed': // internal failure is officer-side info; applicant just sees "in review"
       return t('statusScored', s.lang, vars); // NEVER reveal score/tier/factors
     case 'needs_docs': {
       const docType = (app.pending_doc_requests && app.pending_doc_requests[0]) || 'bank_statement';
@@ -264,7 +275,11 @@ function startPoller(client) {
         const reply = await statusReply(s, phone);
         await client.sendMessage(chatId, reply);
       } catch (err) {
-        console.error('poller error for', phone, err.message);
+        if (err.response && err.response.status === 404) {
+          sessions.delete(phone); // app wiped by /demo/reset — stop polling it
+        } else {
+          console.error('poller error for', phone, err.message);
+        }
       }
     }
   }, POLL_MS);
