@@ -4,11 +4,14 @@ The dashboard and WhatsApp bot build against these routes; the AI engine
 team swaps the internals (DB + real engine) without changing the contract.
 """
 
+import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from app import mock_data
+from app import mock_data, storage
+from app.engine import extraction, rationale, scoring, verification
 from app.models.schemas import (
     Application,
     ApplicationCreate,
@@ -20,6 +23,7 @@ from app.models.schemas import (
 )
 
 router = APIRouter(prefix="/applications", tags=["applications"])
+logger = logging.getLogger("aitabaar.applications")
 
 
 def _now() -> datetime:
@@ -69,16 +73,29 @@ def create_application(body: ApplicationCreate):
 
 @router.post("/{app_id}/documents", response_model=Document, status_code=201)
 async def upload_document(app_id: str, type: DocumentType = Form(...), file: UploadFile = File(...)):
-    """Mock mode: stores metadata only, file bytes are read and discarded.
-    Real mode: persist to Supabase Storage and run extraction."""
+    """Persists the file locally (no Supabase for the demo, see docs/decisions.md)
+    and stores metadata. Image/PDF documents are extracted later, during
+    /score, so upload stays fast. business_questionnaire is plain JSON from
+    the bot/portal — no vision call needed, so it's parsed immediately."""
     app = _get_or_404(app_id)
-    await file.read()
-    doc = Document(
-        id=f"DOC-{sum(len(a.documents) for a in mock_data.APPLICATIONS.values()) + 1:03d}",
-        type=type,
-        filename=file.filename or f"{type.value}.bin",
-        uploaded_at=_now(),
-    )
+    if not app.applicant.consent_given:
+        raise HTTPException(status_code=403, detail="Consent not given for this application")
+
+    content = await file.read()
+    doc_id = f"DOC-{sum(len(a.documents) for a in mock_data.APPLICATIONS.values()) + 1:03d}"
+    filename = file.filename or f"{type.value}.bin"
+    storage.save(app_id, doc_id, filename, content)
+
+    doc = Document(id=doc_id, type=type, filename=filename, uploaded_at=_now())
+
+    if type == DocumentType.business_questionnaire:
+        try:
+            doc.extracted_fields = json.loads(content)
+            doc.status = "extracted"
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            doc.status = "failed"
+            logger.warning("business_questionnaire upload for %s was not valid JSON", app_id)
+
     app.documents.append(doc)
     app.audit_trail.append(
         AuditEvent(at=_now(), actor="system", action="document_uploaded", detail=type.value)
@@ -97,18 +114,68 @@ def submit_application(app_id: str):
     return app
 
 
-@router.post("/{app_id}/score", response_model=Application)
-def score_application(app_id: str):
-    """Trigger the AI engine. Mock: copies the seeded APP-001 score."""
-    app = _get_or_404(app_id)
-    seeded = mock_data.APPLICATIONS["APP-001"]
-    app.score = seeded.score
-    app.status = ApplicationStatus.scored
-    app.audit_trail.append(
-        AuditEvent(at=_now(), actor="engine", action="scored", detail="MOCK score")
-    )
+async def run_full_pipeline(app: Application) -> Application:
+    """Extract -> verify -> score -> explain, one AuditEvent per stage.
+    Any stage exception lands status=failed with the reason recorded — a
+    demo that shows an honest error beats one that hangs (see spec's
+    non-negotiables). Shared by POST /score and GET /demo/reset so both
+    paths run the exact same pipeline."""
+    app.status = ApplicationStatus.processing
+    app.updated_at = _now()
+
+    try:
+        pending = [d for d in app.documents if d.status == "pending"]
+        for doc in pending:
+            path = storage.path_for(doc.id)
+            if path is None:
+                doc.status = "failed"
+                continue
+            file_bytes = storage.load(path)
+            await extraction.extract(doc, file_bytes)
+        app.audit_trail.append(
+            AuditEvent(
+                at=_now(),
+                actor="engine",
+                action="extracted",
+                detail=f"{len(pending)} document(s) processed",
+            )
+        )
+
+        flags = verification.verify(app)
+        app.audit_trail.append(
+            AuditEvent(at=_now(), actor="engine", action="verified", detail=f"{len(flags)} flag(s)")
+        )
+
+        result = scoring.score(app)
+        result.inconsistency_flags = flags
+        app.audit_trail.append(
+            AuditEvent(
+                at=_now(),
+                actor="engine",
+                action="scored",
+                detail=f"tier {result.risk_tier}, p={result.repayment_probability:.2f}",
+            )
+        )
+
+        result.rationale = await rationale.build_brief(app, result)
+        app.audit_trail.append(AuditEvent(at=_now(), actor="engine", action="explained"))
+
+        app.score = result
+        app.status = ApplicationStatus.scored
+    except Exception as exc:  # noqa: BLE001 - a stage failing must never hang the app
+        logger.exception("Pipeline failed for %s", app.id)
+        app.status = ApplicationStatus.failed
+        app.audit_trail.append(AuditEvent(at=_now(), actor="engine", action="failed", detail=str(exc)))
+
     app.updated_at = _now()
     return app
+
+
+@router.post("/{app_id}/score", response_model=Application)
+async def score_application(app_id: str):
+    """Trigger the AI engine: extract -> verify -> score -> explain."""
+    app = _get_or_404(app_id)
+    return await run_full_pipeline(app)
 
 
 @router.post("/{app_id}/decision", response_model=Application)

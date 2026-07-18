@@ -1,15 +1,31 @@
 import os
+from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+load_dotenv()
+
 from app import mock_data
+from app.models.schemas import Application
 from app.routers import applications
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    mock_data.seed()
+    for seeded_app in list(mock_data.APPLICATIONS.values()):
+        if seeded_app.score is None:
+            await applications.run_full_pipeline(seeded_app)
+    yield
+
 
 app = FastAPI(
     title="Aitabaar API",
     description="AI-assisted SME loan origination — UBL National Innovation Hackathon 2026",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -25,9 +41,19 @@ app.add_middleware(
 
 app.include_router(applications.router)
 
-mock_data.seed()
-
 
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "aitabaar-backend"}
+
+
+@app.get("/demo/reset", response_model=list[Application])
+async def demo_reset():
+    """Re-seeds the 3 demo applicants (clean approve / borderline / fraud
+    flag, docs/decisions.md #12) and runs each through the real pipeline so
+    the queue shows genuinely computed scores/briefs. Plain GET so it's a
+    single click before a judging run — no state to protect here."""
+    apps = mock_data.reset()
+    for demo_app in apps:
+        await applications.run_full_pipeline(demo_app)
+    return apps
