@@ -29,6 +29,7 @@ class ApplicationStatus(str, Enum):
     scored = "scored"                # credit brief ready for officer review
     approved = "approved"
     rejected = "rejected"
+    failed = "failed"                # a pipeline stage errored; see audit_trail for detail
 
 
 class DocumentType(str, Enum):
@@ -43,6 +44,7 @@ class Document(BaseModel):
     type: DocumentType
     filename: str
     uploaded_at: datetime
+    status: str = "pending"          # "pending" | "extracted" | "failed"
     # Filled by the extraction stage:
     extracted_fields: dict = Field(default_factory=dict)
     verification_flags: list[str] = Field(default_factory=list)
