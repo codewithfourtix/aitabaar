@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { fetchApplications } from '../services/api';
-import { FileText, ArrowRight, Loader2 } from 'lucide-react';
+import { FileText, ArrowRight, Loader2, AlertTriangle, MessageCircle, Globe } from 'lucide-react';
 
 const getStatusVariant = (status) => {
   switch (status) {
@@ -11,10 +11,13 @@ const getStatusVariant = (status) => {
     case 'scored': return 'info';
     case 'needs_docs': return 'warning';
     case 'processing': return 'warning';
+    case 'failed': return 'danger';
     case 'submitted': return 'default';
     default: return 'default';
   }
 };
+
+const POLL_MS = 5000; // live queue: applications arriving from WhatsApp show up on their own
 
 const QueueView = () => {
   const [applications, setApplications] = useState([]);
@@ -22,23 +25,23 @@ const QueueView = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let alive = true;
     const loadData = async () => {
       try {
         const data = await fetchApplications();
+        if (!alive) return;
         setApplications(data);
+        setError(null);
       } catch (err) {
-        // Fallback mock data if backend isn't running
-        setApplications([
-          { id: 'app-001', applicant: { name: 'Ali Zulfiqar', business_name: 'AZ Electronics' }, status: 'scored', requested_amount_pkr: 500000, created_at: new Date().toISOString() },
-          { id: 'app-002', applicant: { name: 'Usman Ali', business_name: 'Usman Traders' }, status: 'submitted', requested_amount_pkr: 1200000, created_at: new Date().toISOString() },
-          { id: 'app-003', applicant: { name: 'Ayesha Khan', business_name: 'Ayesha Boutique' }, status: 'needs_docs', requested_amount_pkr: 300000, created_at: new Date().toISOString() },
-        ]);
-        console.error('Failed to fetch from backend, using mock data', err);
+        if (!alive) return;
+        setError(err.message);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     };
     loadData();
+    const timer = setInterval(loadData, POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
   }, []);
 
   if (loading) {
@@ -62,13 +65,22 @@ const QueueView = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="glass-panel flex items-center gap-3" style={{ padding: '1rem', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }}>
+          <AlertTriangle className="w-5 h-5" />
+          <span>Cannot reach the Aitbaar backend ({error}). Retrying automatically…</span>
+        </div>
+      )}
+
       <div className="glass-panel" style={{ overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Applicant</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Business</th>
+              <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Channel</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Amount (PKR)</th>
+              <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Risk</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Status</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>Action</th>
             </tr>
@@ -88,7 +100,16 @@ const QueueView = () => {
                   </div>
                 </td>
                 <td style={{ padding: '1rem' }}>{app.applicant.business_name}</td>
+                <td style={{ padding: '1rem' }}>
+                  <span className="flex items-center gap-1 text-sm text-secondary">
+                    {app.channel === 'whatsapp' ? <MessageCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} /> : <Globe className="w-4 h-4" />}
+                    {app.channel}
+                  </span>
+                </td>
                 <td style={{ padding: '1rem', fontWeight: 500 }}>{app.requested_amount_pkr.toLocaleString()}</td>
+                <td style={{ padding: '1rem', fontWeight: 700 }}>
+                  {app.score ? app.score.risk_tier : <span className="text-secondary" style={{ fontWeight: 400 }}>—</span>}
+                </td>
                 <td style={{ padding: '1rem' }}>
                   <Badge variant={getStatusVariant(app.status)}>{app.status}</Badge>
                 </td>
