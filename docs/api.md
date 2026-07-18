@@ -9,16 +9,17 @@ All bodies are JSON unless noted. All timestamps are UTC ISO-8601. Amounts are i
 
 | # | Method | Path | Used by | Status |
 |---|---|---|---|---|
-| 1 | GET | `/health` | everyone | ✅ live (mock) |
-| 2 | GET | `/applications` | dashboard | ✅ live (mock) |
-| 3 | GET | `/applications/{id}` | dashboard, bot | ✅ live (mock) |
-| 4 | POST | `/applications` | bot, portal | ✅ live (mock) |
-| 5 | POST | `/applications/{id}/documents` | bot, portal | ✅ live (mock — stores metadata only) |
-| 6 | POST | `/applications/{id}/submit` | bot, portal | ✅ live (mock) |
-| 7 | POST | `/applications/{id}/score` | dashboard (demo trigger) | ✅ live (returns MOCK score) |
-| 8 | POST | `/applications/{id}/decision` | dashboard | ✅ live (mock) |
+| 1 | GET | `/health` | everyone | ✅ live |
+| 2 | GET | `/applications` | dashboard | ✅ live |
+| 3 | GET | `/applications/{id}` | dashboard, bot | ✅ live |
+| 4 | POST | `/applications` | bot, portal | ✅ live |
+| 5 | POST | `/applications/{id}/documents` | bot, portal | ✅ live (real: persists file, runs real extraction during `/score`) |
+| 6 | POST | `/applications/{id}/submit` | bot, portal | ✅ live |
+| 7 | POST | `/applications/{id}/score` | dashboard (demo trigger) | ✅ live (real engine: extract → verify → score → explain) |
+| 8 | POST | `/applications/{id}/decision` | dashboard | ✅ live |
+| 9 | GET | `/demo/reset` | judging/demo | ✅ live |
 
-"Live (mock)" = endpoint works, backed by in-memory store seeded with `APP-001` (scored) and `APP-002` (submitted). Engine team swaps internals without changing shapes.
+Backed by an in-memory store (no DB for the hackathon demo — [decisions.md](decisions.md)), seeded with 3 demo applicants (clean approve / borderline / name-mismatch fraud flag) and re-seedable via `GET /demo/reset`. Uploaded files persist to local disk (`backend/data/uploads/`, gitignored) — not durable across redeploys, fine for a single demo run.
 
 ---
 
@@ -84,7 +85,9 @@ Create a draft. Body (`ApplicationCreate`):
 }
 ```
 
-Mock mode stores metadata only (file bytes discarded). Real mode: triggers extraction, fills `extracted_fields`. Same shape either way.
+→ `403` `{"detail": "Consent not given for this application"}` if `applicant.consent_given` is false.
+
+File persists to local disk (no Supabase for the demo). Extraction runs later during `/score`, not on upload, so this stays fast — except `business_questionnaire`, which is a JSON body (not an image) and is parsed immediately, filling `extracted_fields` right away.
 
 ## 6. `POST /applications/{id}/submit`
 
@@ -110,7 +113,7 @@ No body. Triggers the engine. → `200` `Application` with `status: "scored"` an
 }
 ```
 
-Currently returns a MOCK score (copy of APP-001's). Real engine keeps this exact shape. `risk_tier` ∈ `A | B | C | D`.
+Real engine: extraction (Gemini vision via OpenRouter) → verification (deterministic + `rapidfuzz`) → scoring (XGBoost, trained on `data/synthetic_sme.csv`) → rationale (template, LLM-enhanced). One `AuditEvent` per stage. `risk_tier` ∈ `A | B | C | D`. If any stage throws, `status` becomes `failed` and the reason lands in `audit_trail` — the app is still returned (never hangs), just without a `score`.
 
 ## 8. `POST /applications/{id}/decision`
 
@@ -129,11 +132,15 @@ Officer action. Body (`DecisionRequest`):
 
 On `request_docs`, `requested_doc_types` is stored on the application as `pending_doc_requests` (cleared when the applicant resubmits). The bot reads `pending_doc_requests[0]` to ask for exactly one item.
 
+## 9. `GET /demo/reset`
+
+No params. Clears the store and re-seeds the 3 demo applicants, running each through the real pipeline (not canned data) so the queue shows genuinely computed scores. → `200` array of the 3 scored `Application`s. Plain GET so it's one click before a judging run.
+
 ---
 
 ## Errors
 
-FastAPI defaults: `404` `{"detail": "..."}` · `422` validation errors `{"detail": [{loc, msg, type}, ...]}`. No auth in hackathon scope ([decisions.md](decisions.md) #8).
+FastAPI defaults: `404` `{"detail": "..."}` · `422` validation errors `{"detail": [{loc, msg, type}, ...]}` · `403` on document upload without consent. No auth in hackathon scope ([decisions.md](decisions.md) #8).
 
 ## PLANNED (do not build against until moved to ✅ and implemented)
 

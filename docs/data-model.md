@@ -31,7 +31,7 @@ stateDiagram-v2
     needs_docs --> submitted: applicant re-uploads via bot
 ```
 
-`draft → submitted → processing → scored → approved | rejected`, with `needs_docs` looping back. In mock mode `processing` may be skipped (submit → score directly).
+`draft → submitted → processing → scored → approved | rejected`, with `needs_docs` looping back, plus **`failed`** (any pipeline stage can land here — the reason is recorded in `audit_trail`, the application is still returned rather than left hanging). `processing` is set for the duration of `/score`'s synchronous run (extract → verify → score → explain); no background task/queue for the demo.
 
 **Who moves status:** bot/portal move `draft→submitted`; engine moves `submitted→processing→scored`; **only the officer** moves `scored→approved/rejected/needs_docs`. The AI never decides.
 
@@ -56,15 +56,16 @@ stateDiagram-v2
 | `type` | enum | `cnic` \| `bank_statement` \| `utility_bill` \| `business_questionnaire` |
 | `filename` | string | |
 | `uploaded_at` | datetime | |
+| `status` | string | `pending` (awaiting extraction) \| `extracted` \| `failed` |
 | `extracted_fields` | object | free-form per type — see extraction targets below |
 | `verification_flags` | string[] | human-readable inconsistency notes |
 
-**Extraction targets per doc type** (engine team fills; keys are lower_snake_case):
+**Extraction targets per doc type** (finalized by the engine team; keys are lower_snake_case):
 
 - `cnic`: `name`, `cnic`, `dob`, `address`
-- `bank_statement`: `avg_monthly_inflow_pkr`, `avg_monthly_outflow_pkr`, `months`, `end_balance_pkr`, `bounced_cheques`
+- `bank_statement`: `account_title`, `avg_monthly_inflow_pkr`, `avg_monthly_outflow_pkr`, `months`, `end_balance_pkr`, `bounced_cheques` (`account_title` added — needed to cross-check against the CNIC name during verification)
 - `utility_bill`: `name`, `address`, `on_time` (bool), `months_history`
-- `business_questionnaire`: `years_in_business`, `employees`, `monthly_revenue_pkr`, `loan_purpose`
+- `business_questionnaire`: `years_in_business`, `employees`, `monthly_revenue_pkr`, `loan_purpose` — this one is plain JSON from the bot, not a vision extraction (parsed synchronously on upload, not during `/score`)
 
 ## ScoreResult
 

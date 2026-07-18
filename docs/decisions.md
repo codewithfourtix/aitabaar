@@ -4,6 +4,7 @@ Why things are the way they are. Add a row when a real decision is made (group c
 
 | # | Date | Decision | Why | Owner |
 |---|---|---|---|---|
+| 18 | 2026-07-18 | Backend engine build stays on the **in-memory store** (no Supabase) for the hackathon submission — supersedes #14 for the demo timeline; `GET /demo/reset` re-seeds + re-scores the 3 demo applicants on demand | same-day deadline (submission 2026-07-19 9PM PKT); in-memory is enough for a live demo process and adding Supabase wiring risked the remaining hours better spent on the actual pipeline (extraction/verification/scoring/brief) | Anas |
 | 17 | 2026-07-18 | Bot ships as a Docker container on Railway with a **volume at `/data`** for the WhatsApp session; linking via a web **`/qr`** page | session survives redeploys (scan once); no terminal access needed on Railway | Ali Z |
 | 16 | 2026-07-18 | Official spelling **"Aitbaar" (اعتبار)** in all user-facing text and deliverables (repo name stays `aitabaar`) | matches submitted Team Information sheet | team |
 | 15 | 2026-07-18 | WhatsApp channel = **whatsapp-web.js on Node.js**, not Meta Cloud API | zero per-message cost for prototype; production rides UBL's existing WhatsApp Business number anyway | team (deliverables sheet) |
