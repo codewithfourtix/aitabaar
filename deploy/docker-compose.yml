@@ -1,0 +1,54 @@
+# Aitbaar full-stack deploy — one always-on VM (Oracle Cloud Always Free).
+# Runs backend + WhatsApp bot + a Caddy reverse proxy that auto-issues HTTPS
+# (via nip.io hostnames) so the Vercel dashboard can call the backend.
+#
+# Usage on the VM (from this deploy/ folder):
+#   cp .env.example .env   &&   nano .env     # fill in key + domains
+#   docker compose up -d --build
+
+services:
+  backend:
+    build:
+      context: ../backend
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - AITABAAR_OFFLINE=${AITABAAR_OFFLINE:-0}
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: ../whatsapp-bot
+    environment:
+      - BACKEND_API_URL=http://backend:8000
+      - PORT=8001
+    volumes:
+      - bot_session:/data          # WhatsApp session survives restarts/redeploys
+    expose:
+      - "8001"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"                     # Let's Encrypt HTTP-01 challenge
+      - "443:443"                   # HTTPS
+    environment:
+      - API_DOMAIN=${API_DOMAIN}
+      - QR_DOMAIN=${QR_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data            # persists issued certificates
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - bot
+    restart: unless-stopped
+
+volumes:
+  bot_session:
+  caddy_data:
+  caddy_config:
