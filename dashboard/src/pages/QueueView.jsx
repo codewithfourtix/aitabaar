@@ -68,6 +68,7 @@ const QueueView = () => {
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Applicant</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Business</th>
+              <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Date Applied</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Amount (PKR)</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Status</th>
               <th style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>Action</th>
@@ -75,7 +76,7 @@ const QueueView = () => {
           </thead>
           <tbody>
             {applications.map((app) => (
-              <tr key={app.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background-color 0.2s' }} className="hover-bg-surface-elevated">
+              <tr key={app.id} style={{ borderBottom: '1px solid rgba(15,23,42,0.05)', transition: 'background-color 0.2s' }} className="hover-bg-surface-elevated">
                 <td style={{ padding: '1rem' }}>
                   <div className="flex items-center gap-3">
                     <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
@@ -83,11 +84,12 @@ const QueueView = () => {
                     </div>
                     <div>
                       <div style={{ fontWeight: 500 }}>{app.applicant.name}</div>
-                      <div className="text-xs text-secondary">{new Date(app.created_at).toLocaleDateString()}</div>
+                      <div className="text-xs text-secondary">{app.applicant.city || 'N/A'}</div>
                     </div>
                   </div>
                 </td>
                 <td style={{ padding: '1rem' }}>{app.applicant.business_name}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{new Date(app.created_at).toLocaleDateString()}</td>
                 <td style={{ padding: '1rem', fontWeight: 500 }}>{app.requested_amount_pkr.toLocaleString()}</td>
                 <td style={{ padding: '1rem' }}>
                   <Badge variant={getStatusVariant(app.status)}>{app.status}</Badge>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { fetchApplication, submitDecision } from '../services/api';
-import { ArrowLeft, User, Briefcase, FileText, Activity, AlertTriangle, CheckCircle, XCircle, MessageCircle, Calendar } from 'lucide-react';
+import { ArrowLeft, User, Briefcase, FileText, Activity, AlertTriangle, CheckCircle, XCircle, MessageCircle, PhoneCall, Calendar, Eye, Download } from 'lucide-react';
 
 const ApplicationDetail = () => {
   const { id } = useParams();
@@ -107,11 +107,18 @@ const ApplicationDetail = () => {
             {app.status === 'scored' && (
               <>
                 <button 
-                  onClick={() => handleDecision('request_docs')}
+                  onClick={() => handleDecision('call_to_bank')}
                   disabled={submitting}
                   className="glass-panel text-sm flex items-center gap-2" 
                   style={{ padding: '0.5rem 1rem', cursor: submitting ? 'not-allowed' : 'pointer', color: 'var(--accent-primary)', backgroundColor: 'var(--bg-surface)' }}>
-                  <MessageCircle className="w-4 h-4" /> Ask for Docs / Call in Bank
+                  <PhoneCall className="w-4 h-4" /> Call to Bank
+                </button>
+                <button 
+                  onClick={() => handleDecision('request_docs')}
+                  disabled={submitting}
+                  className="glass-panel text-sm flex items-center gap-2" 
+                  style={{ padding: '0.5rem 1rem', cursor: submitting ? 'not-allowed' : 'pointer', color: 'var(--accent-warning)', backgroundColor: 'var(--bg-surface)' }}>
+                  <MessageCircle className="w-4 h-4" /> Request Documents
                 </button>
                 <button 
                   onClick={() => handleDecision('reject')}
@@ -263,8 +270,28 @@ const ApplicationDetail = () => {
                           <div className="text-xs text-secondary uppercase mt-1">{doc.type.replace('_', ' ')}</div>
                         </div>
                       </div>
-                      <div className="text-sm text-secondary">
-                        {new Date(doc.uploaded_at).toLocaleString()}
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-secondary hidden sm:block">
+                          {new Date(doc.uploaded_at).toLocaleString()}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            className="glass-panel"
+                            style={{ background: 'none', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--accent-primary)' }}
+                            title="Review Document"
+                            onClick={() => alert(`Reviewing ${doc.filename}`)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button 
+                            className="glass-panel"
+                            style={{ background: 'none', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--accent-primary)' }}
+                            title="Download Document"
+                            onClick={() => alert(`Downloading ${doc.filename}`)}
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

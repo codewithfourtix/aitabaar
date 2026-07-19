@@ -2,20 +2,20 @@
 
 :root {
   /* Light Mode Palette */
-  --bg-base: #f1f5f9;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #f8fafc;
-  --text-primary: #0f172a;
+  --bg-base: #F5F7FA;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F5F7FA;
+  --text-primary: #0A2D6E;
   --text-secondary: #64748b;
   
   /* Blue Theme */
-  --accent-primary: #2563eb;
-  --accent-primary-hover: #1d4ed8;
+  --accent-primary: #1E88E5;
+  --accent-primary-hover: #0A2D6E;
   
   /* Status Colors adjusted for Light Mode */
   --accent-success: #059669;
   --accent-danger: #dc2626;
-  --accent-warning: #d97706;
+  --accent-warning: #C9A227;
   
   /* Borders and Effects */
   --border-color: rgba(15, 23, 42, 0.1);
