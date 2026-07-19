@@ -69,6 +69,14 @@ class ShapFactor(BaseModel):
     direction: str                   # "positive" | "negative"
 
 
+class RecommendedAction(str, Enum):
+    """Policy-layer recommendation only — the officer still decides via
+    POST /applications/{id}/decision. Never set by the scoring model itself."""
+    approve = "APPROVE"
+    review = "REVIEW"
+    decline = "DECLINE"
+
+
 class ScoreResult(BaseModel):
     repayment_probability: float = Field(ge=0, le=1)
     risk_tier: str                   # "A" | "B" | "C" | "D"
@@ -76,6 +84,19 @@ class ScoreResult(BaseModel):
     factors: list[ShapFactor]
     rationale: str                   # one-paragraph plain-language credit brief
     inconsistency_flags: list[str] = Field(default_factory=list)
+    # Policy layer (app/engine/policy.py) — set after scoring + verification,
+    # never by the model. repayment_probability/risk_tier above are untouched.
+    recommended_action: RecommendedAction = RecommendedAction.review
+    decision_reasons: list[str] = Field(default_factory=list)
+    policy_overridden: bool = False
+    override_reason: str | None = None
+    # Data completeness (app/engine/scoring.py) — how much of the feature
+    # row came from real extracted values vs. median fallback. Feeds the
+    # policy layer's low-completeness downgrade; never changes the model
+    # output above.
+    data_completeness: float = 1.0
+    defaulted_fields: list[str] = Field(default_factory=list)
+    completeness_band: str = "HIGH"  # "HIGH" >=0.8 | "MEDIUM" >=0.6 | "LOW" <0.6
 
 
 class AuditEvent(BaseModel):

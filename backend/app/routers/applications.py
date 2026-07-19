@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app import mock_data, storage
-from app.engine import extraction, rationale, scoring, verification
+from app.engine import extraction, policy, rationale, scoring, verification
 from app.models.schemas import (
     Application,
     ApplicationCreate,
@@ -118,12 +118,13 @@ def submit_application(app_id: str, background_tasks: BackgroundTasks):
     return app
 
 
-async def run_full_pipeline(app: Application) -> Application:
-    """Extract -> verify -> score -> explain, one AuditEvent per stage.
-    Any stage exception lands status=failed with the reason recorded — a
-    demo that shows an honest error beats one that hangs (see spec's
+async def run_full_pipeline(app: Application, force_offline: bool = False) -> Application:
+    """Extract -> verify -> score -> decide -> explain, one AuditEvent per
+    stage. Any stage exception lands status=failed with the reason recorded
+    — a demo that shows an honest error beats one that hangs (see spec's
     non-negotiables). Shared by POST /score and GET /demo/reset so both
-    paths run the exact same pipeline."""
+    paths run the exact same pipeline; /demo/reset passes force_offline=True
+    so it never depends on a live LLM call (see main.py)."""
     app.status = ApplicationStatus.processing
     app.updated_at = _now()
 
@@ -161,7 +162,24 @@ async def run_full_pipeline(app: Application) -> Application:
             )
         )
 
-        result.rationale = await rationale.build_brief(app, result)
+        decision = policy.decide(result.risk_tier, flags, result.data_completeness)
+        result.recommended_action = decision.recommended_action
+        result.decision_reasons = decision.decision_reasons
+        result.policy_overridden = decision.policy_overridden
+        result.override_reason = decision.override_reason
+        app.audit_trail.append(
+            AuditEvent(
+                at=_now(),
+                actor="engine",
+                action="decided",
+                detail=(
+                    f"{decision.recommended_action.value}"
+                    + (f" (overridden: {decision.override_reason})" if decision.policy_overridden else "")
+                ),
+            )
+        )
+
+        result.rationale = await rationale.build_brief(app, result, offline=force_offline)
         app.audit_trail.append(AuditEvent(at=_now(), actor="engine", action="explained"))
 
         app.score = result
