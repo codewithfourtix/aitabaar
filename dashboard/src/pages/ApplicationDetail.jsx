@@ -207,6 +207,37 @@ const ApplicationDetail = () => {
         </div>
       )}
 
+      {/* Policy recommendation — engine recommends, officer decides. When
+          policy_overridden, a strong score was blocked by a HIGH flag. */}
+      {app.score && app.score.recommended_action && (() => {
+        const rec = app.score.recommended_action;
+        const color = rec === 'APPROVE' ? 'var(--accent-success)' : rec === 'DECLINE' ? 'var(--accent-danger)' : 'var(--accent-warning)';
+        return (
+          <div className="glass-panel flex flex-col gap-2" style={{ padding: '1rem 1.25rem', backgroundColor: 'var(--bg-surface)', borderLeft: `4px solid ${color}` }}>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-secondary">AI recommendation</span>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color }}>{rec}</span>
+              {app.score.policy_overridden && (
+                <span className="text-xs" style={{ padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent-danger)', color: '#fff', fontWeight: 600 }}>
+                  POLICY OVERRIDE
+                </span>
+              )}
+              {app.score.completeness_band && app.score.completeness_band !== 'HIGH' && (
+                <span className="text-xs text-secondary">· data completeness: {app.score.completeness_band}</span>
+              )}
+            </div>
+            {(app.score.decision_reasons || []).length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                {app.score.decision_reasons.map((r, idx) => (
+                  <li key={idx} className="text-sm text-secondary" style={{ lineHeight: 1.5 }}>{r}</li>
+                ))}
+              </ul>
+            )}
+            <div className="text-xs text-secondary" style={{ fontStyle: 'italic' }}>Recommendation only — the officer makes the final decision below.</div>
+          </div>
+        );
+      })()}
+
       <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
 
         {/* Applicant Details Card */}
