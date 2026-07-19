@@ -7,6 +7,7 @@
 process.env.BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 const axios = require('axios');
+axios.defaults.headers.common.Connection = 'close'; // avoid stale keep-alive sockets (ECONNRESET)
 const { handleMessage, sessions } = require('../src/flow');
 
 const PHONE = '923330001122';
