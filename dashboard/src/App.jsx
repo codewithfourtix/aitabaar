@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import QueueView from './pages/QueueView';
 import ApplicationDetail from './pages/ApplicationDetail';
-import { LayoutDashboard, RotateCcw, Loader2 } from 'lucide-react';
+import { RotateCcw, Loader2 } from 'lucide-react';
 import { demoReset } from './services/api';
+import IconLogo from './assets/Icon Logo.png';
 
 function DemoResetButton() {
   const [busy, setBusy] = useState(false);
@@ -37,8 +38,8 @@ function App() {
     <Router>
       <div className="flex flex-col h-full w-full">
         <header className="glass-panel container flex justify-between items-center" style={{ margin: '1rem auto', padding: '1rem 2rem', borderBottom: '1px solid var(--border-color)' }}>
-          <Link to="/" className="flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <LayoutDashboard className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
+          <Link to="/" className="flex items-center gap-2" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+            <img src={IconLogo} alt="Aitbaar Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
             <span style={{ fontSize: '1.25rem', fontWeight: 600 }}>Aitbaar — Loan Officer Dashboard</span>
           </Link>
           <div className="flex items-center gap-4">

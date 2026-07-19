@@ -2,12 +2,14 @@
 
 No DB for the hackathon demo (see docs/decisions.md) — this dict lives for
 the life of the running process, which is exactly a demo's lifetime.
-`reset()` re-seeds the three-applicant narrative used for judging: a clean
-approve, a borderline case, and a CNIC/bank-statement name-mismatch fraud
-flag (docs/decisions.md #12). Documents are seeded with extraction already
-"done" (as if a vision call already ran) so /demo/reset can run each one
-through the real verify -> score -> brief pipeline without needing real
-document images on hand.
+`reset()` re-seeds the four-applicant narrative used for judging: a clean
+approve, a borderline case, a CNIC/bank-statement name-mismatch fraud flag
+(docs/decisions.md #12), and a thin-file case (item 1.1) — a legitimate but
+under-documented applicant whose tier would otherwise approve, exercising
+the data-completeness downgrade in app/engine/policy.py live. Documents are
+seeded with extraction already "done" (as if a vision call already ran) so
+/demo/reset can run each one through the real verify -> score -> brief
+pipeline without needing real document images on hand.
 """
 
 from datetime import datetime, timezone
@@ -74,6 +76,7 @@ def _clean_approve() -> Application:
                     "months": 6,
                     "end_balance_pkr": 180_000,
                     "bounced_cheques": 0,
+                    "account_age_months": 96,
                 },
             ),
             Document(
@@ -100,6 +103,11 @@ def _clean_approve() -> Application:
                     "employees": 3,
                     "monthly_revenue_pkr": 480_000,
                     "loan_purpose": "Inventory restock for Ramzan season",
+                    "registered": True,
+                    "premises_owned": True,
+                    "years_at_premises": 6,
+                    "has_existing_loan": False,
+                    "existing_installment_pkr": 0,
                 },
             ),
         ],
@@ -127,7 +135,13 @@ def _borderline() -> Application:
             language=Language.en,
             consent_given=True,
         ),
-        requested_amount_pkr=700_000,
+        # Nudged up from 700k after item 1.3's synthetic-data reanchoring
+        # (docs/decisions.md open question) raised the population's median
+        # requested_amount_pkr to ~2.1M — at 700k her turnover-to-loan
+        # ratio read as above-average leverage, no longer "borderline"
+        # against the new baseline. 1.3M keeps her income/cashflow story
+        # unchanged but makes the ask genuinely stretched against it.
+        requested_amount_pkr=1_300_000,
         documents=[
             Document(
                 id="DOC-005",
@@ -149,12 +163,21 @@ def _borderline() -> Application:
                 uploaded_at=_now(),
                 status="extracted",
                 extracted_fields={
+                    # Cashflow thinned and bounced cheques raised to 3 after
+                    # item 1.3's reanchoring, alongside the requested_amount
+                    # nudge above — the requested-amount change alone
+                    # topped out at tier B (still auto-approve) against the
+                    # reanchored population; this combination restores
+                    # tier C, and 3 bounced cheques also trips
+                    # verification's own MEDIUM threshold (not HIGH) —
+                    # still a borderline story, not a fraud one.
                     "account_title": "Ayesha Siddiqui",
-                    "avg_monthly_inflow_pkr": 180_000,
-                    "avg_monthly_outflow_pkr": 165_000,
+                    "avg_monthly_inflow_pkr": 150_000,
+                    "avg_monthly_outflow_pkr": 145_000,
                     "months": 6,
                     "end_balance_pkr": 25_000,
-                    "bounced_cheques": 1,
+                    "bounced_cheques": 3,
+                    "account_age_months": 24,
                 },
             ),
             Document(
@@ -181,6 +204,11 @@ def _borderline() -> Application:
                     "employees": 2,
                     "monthly_revenue_pkr": 210_000,
                     "loan_purpose": "New sewing machines",
+                    "registered": False,
+                    "premises_owned": False,
+                    "years_at_premises": 2,
+                    "has_existing_loan": False,
+                    "existing_installment_pkr": 0,
                 },
             ),
         ],
@@ -237,6 +265,7 @@ def _fraud_flag() -> Application:
                     "months": 6,
                     "end_balance_pkr": 300_000,
                     "bounced_cheques": 0,
+                    "account_age_months": 120,
                 },
             ),
             Document(
@@ -263,6 +292,104 @@ def _fraud_flag() -> Application:
                     "employees": 15,
                     "monthly_revenue_pkr": 700_000,
                     "loan_purpose": "Working capital",
+                    "registered": True,
+                    "premises_owned": True,
+                    "years_at_premises": 8,
+                    "has_existing_loan": False,
+                    "existing_installment_pkr": 0,
+                },
+            ),
+        ],
+        audit_trail=[
+            AuditEvent(at=_now(), actor="system", action="created", detail="via whatsapp"),
+            AuditEvent(at=_now(), actor="system", action="submitted", detail="demo seed"),
+        ],
+        created_at=_now(),
+        updated_at=_now(),
+    )
+
+
+def _thin_file() -> Application:
+    """Legitimate SME, genuinely under-documented: a 2-month bank-statement
+    excerpt (no cheque history or account-age visible on it) and a
+    partly-filled questionnaire (self-reported revenue/years only). No
+    fraud signal — CNIC name matches the bank account title exactly.
+    Financially this profile would tier A/B on its own (strong
+    turnover-to-loan ratio, positive cashflow, zero debt burden); the point
+    is that low data_completeness pulls it to REVIEW anyway (item 1.1)."""
+    return Application(
+        id="APP-004",
+        channel=Channel.whatsapp,
+        status=ApplicationStatus.submitted,
+        applicant=Applicant(
+            name="Sana Malik",
+            cnic_number="42201-3344556-7",
+            phone="+923451234567",
+            business_name="Malik Traders",
+            business_type="Retail / General Store",
+            city="Multan",
+            language=Language.en,
+            consent_given=True,
+        ),
+        requested_amount_pkr=400_000,
+        documents=[
+            Document(
+                id="DOC-013",
+                type=DocumentType.cnic,
+                filename="cnic.jpg",
+                uploaded_at=_now(),
+                status="extracted",
+                extracted_fields={
+                    "name": "Sana Malik",
+                    "cnic": "42201-3344556-7",
+                    "dob": "1988-09-10",
+                    "address": "House 22, Cantt, Multan",
+                },
+            ),
+            Document(
+                id="DOC-014",
+                type=DocumentType.bank_statement,
+                filename="bank_statement_excerpt.pdf",
+                uploaded_at=_now(),
+                status="extracted",
+                extracted_fields={
+                    # Short 2-month excerpt, not the usual 6 — cheque history
+                    # and account age aren't visible on it, so those 2 keys
+                    # are genuinely absent, not null-hacked.
+                    "account_title": "Sana Malik",
+                    "avg_monthly_inflow_pkr": 500_000,
+                    "avg_monthly_outflow_pkr": 430_000,
+                    "months": 2,
+                    "end_balance_pkr": 70_000,
+                },
+            ),
+            Document(
+                id="DOC-015",
+                type=DocumentType.utility_bill,
+                filename="utility_bill.jpg",
+                uploaded_at=_now(),
+                status="extracted",
+                extracted_fields={
+                    "name": "Sana Malik",
+                    "address": "House 22, Cantt, Multan",
+                    "on_time": True,
+                    "months_history": 2,
+                },
+            ),
+            Document(
+                id="DOC-016",
+                type=DocumentType.business_questionnaire,
+                filename="questionnaire.json",
+                uploaded_at=_now(),
+                status="extracted",
+                extracted_fields={
+                    # Only the self-reported basics — applicant hasn't
+                    # completed the registration/premises/existing-loan
+                    # questions yet. 6 of 8 questionnaire fields genuinely
+                    # absent, not defaulted-and-hidden.
+                    "years_in_business": 5,
+                    "monthly_revenue_pkr": 550_000,
+                    "loan_purpose": "Restocking inventory ahead of harvest season",
                 },
             ),
         ],
@@ -276,7 +403,7 @@ def _fraud_flag() -> Application:
 
 
 def _build_demo_applications() -> list[Application]:
-    return [_clean_approve(), _borderline(), _fraud_flag()]
+    return [_clean_approve(), _borderline(), _fraud_flag(), _thin_file()]
 
 
 def seed() -> None:
