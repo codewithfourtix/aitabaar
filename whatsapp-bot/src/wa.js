@@ -20,12 +20,24 @@ function createClient() {
     puppeteer: {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      // Low-memory flags — WhatsApp Web + Chromium OOMs on small (512MB)
+      // containers. Disabling site isolation collapses the renderer process
+      // count, which is the biggest single memory saver here.
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-first-run',
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=site-per-process,TranslateUI',
+        '--disable-accelerated-2d-canvas',
+        '--mute-audio',
       ],
     },
   });
