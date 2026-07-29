@@ -51,7 +51,7 @@ Pakistan has ~5M SMEs producing 40% of GDP, yet only ~155k hold a bank loan. The
 
 - [x] Source Code
 - [x] Pitch Deck
-- [] UI/UX
+- [ ] UI/UX
 - [x] Architecture Diagram
 - [ ] Demo Video
 - [ ] Documentation
