@@ -1,0 +1,23 @@
+# Aitbaar WhatsApp bot — Twilio channel. No Chromium, so no browser packages,
+# no volume, no dumb-init zombie reaping: just Node and an HTTP webhook.
+# This is the image that fixes the 512MB OOM problem.
+#
+#   docker build -f Dockerfile.twilio -t aitbaar-bot-twilio ./whatsapp-bot
+
+FROM node:20-bookworm-slim
+
+ENV NODE_ENV=production \
+    CHANNEL=twilio \
+    PORT=8001
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY src ./src
+COPY assets ./assets
+
+EXPOSE 8001
+
+CMD ["node", "src/index.js"]

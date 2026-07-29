@@ -15,7 +15,7 @@ Pakistan has ~5M SMEs producing 40% of GDP, yet only ~155k hold a bank loan. The
 ## Architecture
 
 ```
-SME owner ──WhatsApp (Urdu)──► whatsapp-bot (Node, whatsapp-web.js, Docker+Railway volume)
+SME owner ──WhatsApp (Urdu)──► whatsapp-bot (Node; Twilio Business API, or whatsapp-web.js)
                                     │ REST
                                     ▼
                     backend (FastAPI on Railway) ── engine: extract → verify → score → explain
@@ -27,7 +27,7 @@ Loan officer ──browser──► dashboard (React on Vercel)
 | Folder | What | Runs on |
 |---|---|---|
 | `backend/` | FastAPI API + AI engine, trained model in `models/`, dataset + generator in `data/` | Railway (Dockerfile) |
-| `whatsapp-bot/` | Applicant channel; session persists on a volume, links via a web `/qr` page | Railway (Dockerfile + volume) |
+| `whatsapp-bot/` | Applicant channel; one state machine behind two transports (`CHANNEL=twilio` webhook, or `wwebjs` + QR) | Railway (Dockerfile) |
 | `dashboard/` | Loan officer queue + one-page credit brief + audit trail | Vercel |
 | `docs/` | **Source of truth**: API contract, data model, specs, decision log, demo runbook | — |
 
