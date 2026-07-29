@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/aitbaar-logo.png" alt="Aitbaar (اعتبار) — اعتبار، جو کاروبار بڑھائے" width="420">
+</p>
+
 # Aitbaar (اعتبار) — Trust
 
 **AI-assisted SME loan origination.** Built for the UBL National Innovation Hackathon 2026 (theme: Artificial Intelligence in Banking).
