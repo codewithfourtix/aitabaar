@@ -1,0 +1,41 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# WhatsApp session (NEVER commit — it is a logged-in session)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# ML artifacts / data
+*.pkl
+*.joblib
+models/*.json
+# ...except the trained artifacts we actually ship (deploy shouldn't depend on retraining at boot)
+!backend/models/aitbaar_xgb.json
+!backend/models/features.json
+data/raw/
+data/uploads/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

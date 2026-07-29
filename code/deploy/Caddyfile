@@ -1,0 +1,10 @@
+# Caddy auto-issues + renews Let's Encrypt HTTPS for these hostnames.
+# Domains come from .env (API_DOMAIN / QR_DOMAIN). No editing needed here.
+
+{$API_DOMAIN} {
+	reverse_proxy backend:8000
+}
+
+{$QR_DOMAIN} {
+	reverse_proxy bot:8001
+}
