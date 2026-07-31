@@ -19,13 +19,13 @@ No Railway/Vercel accounts needed beyond free tier. If Railway build fails on th
 
 **Cast: your phone = SME owner "behind his counter". Browser = UBL loan officer.**
 
-1. **Apply on WhatsApp** — send `loan` to the bot number → choose اردو → the bot sends the FULL document checklist + consent in one message (⭐ say out loud: "no discovered checklist — everything up front"). Reply HAAN, answer name/business + 10 questions (⭐ Q4 employees and Q7 existing borrowing are SBP Prudential Regulation requirements, and both feed the model directly).
+1. **Apply on WhatsApp** — send `loan` to the bot number → choose اردو → the bot sends the FULL document checklist + consent in one message (⭐ say out loud: "no discovered checklist — everything up front"). Reply HAAN, answer name/business + 5 questions (⭐ years trading and monthly sales feed the scoring model directly; trimmed from an earlier 10-question version so the demo doesn't lose the room).
 2. **Send documents** — photo of (mock) CNIC, bank statement, utility bill. Bot confirms each, shows summary → SUBMIT → reference number + "no branch visit needed."
 3. **Switch to dashboard** — the application is already in the queue (it polls every 5s) and moves on its own: `submitted → processing → scored` (pipeline auto-runs on submit). Don't touch anything, let judges watch it move.
-4. **Open the file** — one-page brief: credit score /100, risk tier, recommended limit, SHAP factor bars, rationale. Click the Documents tab (extracted fields per doc), then Audit Trail tab (⭐ "every decision reconstructable").
-5. **Decide** — Approve the clean file → phone buzzes with the Urdu "Mubarak ho 🎉" message. Then open the pre-loaded fraud-flag file (from `/demo/reset`), point at the name-mismatch warning, click **Request Document** → pick bank statement + note → phone buzzes asking for exactly that one item.
+4. **Open the file** — one-page brief: credit score /100, risk tier, recommended limit, SHAP factor bars, rationale, amount-cap breakdown, e-CIB check. Click the Documents tab (extracted fields per doc), then Audit Trail tab (⭐ "every decision reconstructable").
+5. **Decide** — Approve the clean file → phone buzzes on its own with the Urdu "Mubarak ho" message, no need to check status. Then open the pre-loaded fraud-flag file (from `/demo/reset`), point at the name-mismatch warning, click **Request Documents** → pick bank statement + note → phone buzzes asking for exactly that one item, unprompted.
 
-Total ≤ 3 minutes once rehearsed. The bot polls for decisions every 30s — for a snappy demo, have the applicant phone send `status` right after the officer clicks, which fetches instantly.
+Total ≤ 3 minutes once rehearsed. The applicant's phone updates itself within a few seconds of the officer's click either way (⭐ "the applicant never has to ask — it just arrives") — no need to send `status` to force a check anymore.
 
 ## Failure modes
 

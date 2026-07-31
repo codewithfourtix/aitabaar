@@ -80,7 +80,7 @@ Document tiers, as the applicant flow collects them (`docs/whatsapp-bot-flow.md`
 | `cnic` | required | always |
 | `bank_statement` | required | always — accepts a **bank statement or a JazzCash/Easypaisa statement**; both are proof of cash flow, so they share one type |
 | `utility_bill` | required | always |
-| `business_questionnaire` | required | JSON, uploaded once the 10 questions are answered |
+| `business_questionnaire` | required | JSON, uploaded once the 5 questions are answered |
 | `business_registration` | optional | offered after the 3 required docs; applicant may reply `SKIP` |
 | `property_document` | conditional | only requested when `requested_amount_pkr >= 5000000` (SBP R-8 clean-facility limit) |
 | `other` | officer-initiated only | not part of the applicant flow's own checklist — used when an officer requests something outside the named types via `POST /applications/{id}/decision` (`action=request_docs`); the actual document name/reason travels in that request's `note`, not in `type` |

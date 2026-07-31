@@ -21,7 +21,7 @@ const STRINGS = {
       '1. CNIC (front)\n' +
       '2. Bank statement, *or* JazzCash/Easypaisa statement — last 6 months\n' +
       '3. A recent electricity or gas bill\n\n' +
-      'Plus 10 short questions about your business.\n\n' +
+      'Plus 5 short questions about your business.\n\n' +
       '*Consent:* Your documents will be processed by AI to assess your loan application. ' +
       'A UBL loan officer — a human — makes the final decision. Your data is used only for this application.\n\n' +
       'Reply *YES* to agree and begin, or *NO* to stop.',
@@ -31,7 +31,7 @@ const STRINGS = {
       '۱۔ شناختی کارڈ (سامنے کا رخ)\n' +
       '۲۔ بینک اسٹیٹمنٹ، *یا* جاز کیش/ایزی پیسہ اسٹیٹمنٹ — آخری ۶ ماہ\n' +
       '۳۔ حالیہ بجلی یا گیس کا بل\n\n' +
-      'اس کے علاوہ کاروبار کے بارے میں ۱۰ مختصر سوالات۔\n\n' +
+      'اس کے علاوہ کاروبار کے بارے میں ۵ مختصر سوالات۔\n\n' +
       '*رضامندی:* آپ کی دستاویزات AI کے ذریعے قرض کی درخواست جانچنے کے لیے استعمال ہوں گی۔ ' +
       'حتمی فیصلہ UBL کا لون آفیسر — ایک انسان — کرے گا۔ آپ کا ڈیٹا صرف اسی درخواست کے لیے استعمال ہوگا۔\n\n' +
       'اتفاق اور آغاز کے لیے *HAAN* لکھیں، یا رکنے کے لیے *NO*۔',
@@ -50,47 +50,29 @@ const STRINGS = {
     ur: 'آپ کے کاروبار کا (رجسٹرڈ یا مروجہ) نام؟',
   },
 
-  // The 10 business questions (spec §4) — each maps to a real SBP Prudential
-  // Regulations intake requirement; see docs/whatsapp-bot-flow.md.
-  qLegalStructure: {
-    en: "*Question 1/10:* What is your business's legal structure? (e.g. sole proprietorship, partnership, private limited company)",
-    ur: '*سوال ۱/۱۰:* آپ کے کاروبار کی قانونی نوعیت کیا ہے؟ (مثلاً واحد ملکیت، پارٹنرشپ، پرائیویٹ لمیٹڈ کمپنی)',
-  },
+  // The 5 business questions (spec §4, trimmed from an earlier 10-question
+  // version to keep a live demo moving — see docs/whatsapp-bot-flow.md).
+  // Each of these 5 is either a direct scoring.py model input (years,
+  // monthly sales) or load-bearing for the loan itself (amount, purpose).
   qBusinessType: {
-    en: '*Question 2/10:* What type of business? (e.g. general store, wholesale, food, textile)',
-    ur: '*سوال ۲/۱۰:* کاروبار کی قسم؟ (مثلاً جنرل اسٹور، ہول سیل، کھانا، کپڑا)',
+    en: '*Question 1/5:* What type of business? (e.g. general store, wholesale, food, textile)',
+    ur: '*سوال ۱/۵:* کاروبار کی قسم؟ (مثلاً جنرل اسٹور، ہول سیل، کھانا، کپڑا)',
   },
   qYears: {
-    en: '*Question 3/10:* How many years have you been trading?',
-    ur: '*سوال ۳/۱۰:* کاروبار کو کتنے سال ہو گئے؟',
-  },
-  qEmployees: {
-    en: '*Question 4/10:* How many people work at your business, including yourself?',
-    ur: '*سوال ۴/۱۰:* آپ کے کاروبار میں (خود سمیت) کتنے افراد کام کرتے ہیں؟',
+    en: '*Question 2/5:* How many years have you been trading?',
+    ur: '*سوال ۲/۵:* کاروبار کو کتنے سال ہو گئے؟',
   },
   qMonthlySales: {
-    en: '*Question 5/10:* Average monthly sales, in PKR? (e.g. 400000)',
-    ur: '*سوال ۵/۱۰:* ماہانہ اوسط فروخت، روپوں میں؟ (مثلاً 400000)',
-  },
-  qMonthlyExpenses: {
-    en: '*Question 6/10:* Average monthly business expenses, in PKR — rent, salaries, utilities, supplies? (e.g. 250000)',
-    ur: '*سوال ۶/۱۰:* ماہانہ اوسط کاروباری اخراجات، روپوں میں — کرایہ، تنخواہیں، بجلی، خام مال؟ (مثلاً 250000)',
-  },
-  qExistingLoans: {
-    en: '*Question 7/10:* Do you currently have any outstanding loan or credit facility with any bank or lender? Reply *NO*, or *YES* followed by the amount (e.g. "YES 200000").',
-    ur: '*سوال ۷/۱۰:* کیا آپ پر کسی بینک یا ادارے کا کوئی قرض یا کریڈٹ سہولت واجب الادا ہے؟ *NO* لکھیں، یا *YES* کے ساتھ رقم درج کریں (مثلاً "YES 200000")۔',
+    en: '*Question 3/5:* Average monthly sales, in PKR? (e.g. 400000)',
+    ur: '*سوال ۳/۵:* ماہانہ اوسط فروخت، روپوں میں؟ (مثلاً 400000)',
   },
   qAmount: {
-    en: '*Question 8/10:* How much loan do you need, in PKR? (e.g. 1500000)',
-    ur: '*سوال ۸/۱۰:* آپ کو کتنا قرض درکار ہے، روپوں میں؟ (مثلاً 1500000)',
-  },
-  qTenor: {
-    en: '*Question 9/10:* Over how many months would you like to repay this loan? (e.g. 12)',
-    ur: '*سوال ۹/۱۰:* یہ قرض کتنے مہینوں میں ادا کرنا چاہیں گے؟ (مثلاً 12)',
+    en: '*Question 4/5:* How much loan do you need, in PKR? (e.g. 1500000)',
+    ur: '*سوال ۴/۵:* آپ کو کتنا قرض درکار ہے، روپوں میں؟ (مثلاً 1500000)',
   },
   qPurpose: {
-    en: '*Question 10/10:* What is the loan for? (e.g. stock for Ramzan, new machine)',
-    ur: '*سوال ۱۰/۱۰:* قرض کس مقصد کے لیے درکار ہے؟ (مثلاً رمضان کا اسٹاک، نئی مشین)',
+    en: '*Question 5/5:* What is the loan for? (e.g. stock for Ramzan, new machine)',
+    ur: '*سوال ۵/۵:* قرض کس مقصد کے لیے درکار ہے؟ (مثلاً رمضان کا اسٹاک، نئی مشین)',
   },
 
   askCnic: {
@@ -216,22 +198,13 @@ const DOC_LABELS = {
 // translation on the judges' screen.
 const SUMMARY = {
   name: { en: 'Name', ur: 'نام' },
-  legalStructure: { en: 'Legal structure', ur: 'قانونی نوعیت' },
   business: { en: 'Business', ur: 'کاروبار' },
   monthlySales: { en: 'Monthly sales', ur: 'ماہانہ فروخت' },
-  monthlyExpenses: { en: 'Monthly expenses', ur: 'ماہانہ اخراجات' },
-  existingBorrowing: { en: 'Existing borrowing', ur: 'موجودہ قرض' },
   requested: { en: 'Requested', ur: 'درخواست شدہ رقم' },
   purpose: { en: 'Purpose', ur: 'مقصد' },
   documents: { en: 'Documents', ur: 'دستاویزات' },
   // value fragments
   years: { en: 'years', ur: 'سال' },
-  staff: { en: 'staff', ur: 'افراد' },
-  months: { en: 'months', ur: 'مہینے' },
-  over: { en: 'over', ur: 'مدت' },
-  yes: { en: 'Yes', ur: 'ہاں' },
-  amountNotStated: { en: 'amount not stated', ur: 'رقم درج نہیں' },
-  noneDeclared: { en: 'None declared', ur: 'کوئی نہیں' },
   pkr: { en: 'PKR', ur: 'روپے' },
   // short document names for the summary line
   docCnic: { en: 'CNIC', ur: 'شناختی کارڈ' },
