@@ -2,7 +2,99 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { fetchApplication, submitDecision, scoreApplication } from '../services/api';
-import { ArrowLeft, User, FileText, Activity, AlertTriangle, CheckCircle, XCircle, MessageCircle, Calendar, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, FileText, Activity, AlertTriangle, CheckCircle, XCircle, MessageCircle, Calendar, Sparkles, Loader2, Download } from 'lucide-react';
+
+const escapeHtml = (v) =>
+  String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// One-page, print-ready credit brief. Rendered into a hidden iframe and sent
+// to the browser print dialog — "Save as PDF" gives the downloadable report.
+function buildBriefHtml(app) {
+  const s = app.score;
+  const recColor = s.recommended_action === 'APPROVE' ? '#15803d' : s.recommended_action === 'DECLINE' ? '#b91c1c' : '#b45309';
+  const factorRows = (s.factors || []).map((f) => {
+    const pos = f.direction === 'positive';
+    const pct = Math.min(Math.abs(f.impact) * 300, 100);
+    return `<tr>
+      <td class="fl">${escapeHtml(f.label)}</td>
+      <td class="fb"><div class="bar ${pos ? 'pos' : 'neg'}" style="width:${pct}%"></div></td>
+      <td class="fi" style="color:${pos ? '#15803d' : '#b91c1c'}">${pos ? '+' : '−'}${Math.abs(f.impact * 100).toFixed(0)}</td>
+    </tr>`;
+  }).join('');
+  const flags = (s.inconsistency_flags || []).map((f) => `<li>${escapeHtml(f)}</li>`).join('');
+  const reasons = (s.decision_reasons || []).map((r) => `<li>${escapeHtml(r)}</li>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(app.id)} — Credit Brief</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #1a202c; font-size: 12.5px; line-height: 1.45; }
+    .head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid #0f766e; padding-bottom: 8px; }
+    .head h1 { font-size: 20px; } .head .ur { font-size: 14px; color: #0f766e; }
+    .head .meta { text-align: right; font-size: 11px; color: #4a5568; }
+    h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #4a5568; margin: 16px 0 6px; font-family: Helvetica, Arial, sans-serif; }
+    table.kv { width: 100%; border-collapse: collapse; }
+    table.kv td { padding: 3px 0; vertical-align: top; }
+    table.kv td:first-child { color: #4a5568; width: 34%; }
+    .tiles { display: flex; gap: 10px; margin-top: 4px; }
+    .tile { flex: 1; border: 1px solid #cbd5e0; border-radius: 6px; padding: 8px 10px; text-align: center; }
+    .tile .v { font-size: 22px; font-weight: 700; } .tile .l { font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: 1px; }
+    .rec { border-left: 4px solid ${recColor}; background: #f7fafc; padding: 8px 12px; margin-top: 4px; }
+    .rec b { color: ${recColor}; font-size: 15px; }
+    .rationale { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; }
+    table.factors { width: 100%; border-collapse: collapse; margin-top: 2px; }
+    .fl { width: 42%; padding: 3px 8px 3px 0; } .fb { padding: 3px 0; } .fi { width: 34px; text-align: right; font-weight: 700; font-family: Helvetica, Arial, sans-serif; font-size: 11px; }
+    .fb .bar { height: 7px; border-radius: 4px; } .bar.pos { background: #34d399; } .bar.neg { background: #f87171; }
+    ul { padding-left: 18px; } .warn li { color: #b45309; }
+    .foot { margin-top: 18px; border-top: 1px solid #cbd5e0; padding-top: 8px; font-size: 10px; color: #4a5568; font-style: italic; }
+  </style></head><body>
+  <div class="head">
+    <div><h1>Aitbaar <span class="ur">(اعتبار)</span></h1><div style="font-size:12px;color:#4a5568">AI Credit Brief — SME Loan Origination</div></div>
+    <div class="meta"><b>${escapeHtml(app.id)}</b><br>Generated ${new Date().toLocaleString()}<br>Status: ${escapeHtml(app.status)}</div>
+  </div>
+  <h2>Applicant</h2>
+  <table class="kv">
+    <tr><td>Name</td><td><b>${escapeHtml(app.applicant.name)}</b></td></tr>
+    <tr><td>Business</td><td>${escapeHtml(app.applicant.business_name)} (${escapeHtml(app.applicant.business_type || '—')})</td></tr>
+    <tr><td>Phone / City</td><td>${escapeHtml(app.applicant.phone)} · ${escapeHtml(app.applicant.city || '—')}</td></tr>
+    <tr><td>Channel / Consent</td><td>${escapeHtml(app.channel)} · ${app.applicant.consent_given ? 'consent given ✓' : 'CONSENT MISSING'}</td></tr>
+    <tr><td>Requested amount</td><td><b>PKR ${Number(app.requested_amount_pkr).toLocaleString()}</b></td></tr>
+  </table>
+  <h2>Assessment</h2>
+  <div class="tiles">
+    <div class="tile"><div class="v">${Math.round(s.repayment_probability * 100)}<span style="font-size:12px;color:#4a5568">/100</span></div><div class="l">Credit score</div></div>
+    <div class="tile"><div class="v">${escapeHtml(s.risk_tier)}</div><div class="l">Risk tier</div></div>
+    <div class="tile"><div class="v" style="font-size:16px;padding-top:5px">PKR ${Number(s.recommended_amount_pkr).toLocaleString()}</div><div class="l">Recommended limit</div></div>
+  </div>
+  <div class="rec" style="margin-top:10px">AI recommendation: <b>${escapeHtml(s.recommended_action)}</b>${s.policy_overridden ? ' — POLICY OVERRIDE' : ''}
+    ${reasons ? `<ul>${reasons}</ul>` : ''}</div>
+  <h2>Rationale</h2>
+  <div class="rationale">${escapeHtml(s.rationale)}</div>
+  <h2>Key impact factors (SHAP)</h2>
+  <table class="factors">${factorRows}</table>
+  ${flags ? `<h2>Verification flags</h2><ul class="warn">${flags}</ul>` : ''}
+  <table class="kv" style="margin-top:10px"><tr><td>Data completeness</td><td>${Math.round((s.data_completeness ?? 0) * 100)}% (${escapeHtml(s.completeness_band || '—')})</td></tr>
+  <tr><td>Documents on file</td><td>${(app.documents || []).length}</td></tr></table>
+  <div class="foot">This brief is an AI-generated recommendation produced from model (XGBoost + SHAP) outputs and deterministic verification checks only.
+  The final lending decision rests with the loan officer. Aitbaar — UBL National Innovation Hackathon 2026.</div>
+  </body></html>`;
+}
+
+function printBrief(app) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+  iframe.srcdoc = buildBriefHtml(app);
+  iframe.onload = () => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => iframe.remove(), 60000);
+  };
+}
 
 const DOC_TYPE_OPTIONS = [
   { value: 'cnic', label: 'CNIC (front)' },
@@ -128,6 +220,14 @@ const ApplicationDetail = () => {
               <span className="glass-panel text-sm flex items-center gap-2" style={{ padding: '0.5rem 1rem', color: 'var(--accent-primary)' }}>
                 <Loader2 className="w-4 h-4" style={{ animation: 'spin 1s linear infinite' }} /> Engine running…
               </span>
+            )}
+            {app.score && (
+              <button
+                onClick={() => printBrief(app)}
+                className="glass-panel text-sm flex items-center gap-2"
+                style={{ padding: '0.5rem 1rem', cursor: 'pointer', color: 'var(--text-primary)', backgroundColor: 'var(--bg-surface)' }}>
+                <Download className="w-4 h-4" /> Download Brief
+              </button>
             )}
             {app.status === 'scored' && (
               <>

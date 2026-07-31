@@ -6,7 +6,9 @@ const FormData = require('form-data');
 
 const BASE = (process.env.BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-const http = axios.create({ baseURL: BASE, timeout: 30000 });
+// Connection: close — uvicorn drops keep-alive sockets after 5s idle, and
+// reusing a dead socket surfaces as random ECONNRESET mid-conversation.
+const http = axios.create({ baseURL: BASE, timeout: 30000, headers: { Connection: 'close' } });
 
 async function createApplication({ phone, name, businessName, businessType, language, amountPkr }) {
   const { data } = await http.post('/applications', {
