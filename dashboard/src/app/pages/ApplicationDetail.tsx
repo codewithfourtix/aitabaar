@@ -1,9 +1,102 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Download, X, Check, AlertTriangle, MessageCircle, Globe, FileText, Clock, Shield, Loader2 } from "lucide-react";
-import { DashboardShell, GlassCard, navy, blue, success, warning, danger, indigo } from "../shared";
+import { ArrowLeft, X, Check, MessageCircle, Globe, FileText, Loader2, Printer, FilePlus2 } from "lucide-react";
+import { DashboardShell, GlassCard, Modal, FlagBadge, navy, blue, success, warning, danger, indigo } from "../shared";
 import { fetchApplication, submitDecision } from "../../services/api";
 
 type DetailTab = "brief" | "documents" | "audit";
+
+// Human labels for the document types an officer can request or see in the
+// Documents tab - same product-facing names the WhatsApp bot uses (see
+// whatsapp-bot/src/strings.js's DOC_LABELS), not the raw enum values.
+const DOC_TYPE_LABELS: Record<string, string> = {
+  cnic: "CNIC",
+  bank_statement: "Bank / Mobile Wallet Statement",
+  utility_bill: "Utility Bill",
+  business_questionnaire: "Business Questionnaire",
+  business_registration: "Business Registration Proof",
+  property_document: "Property Ownership / Rent Agreement",
+};
+
+const REQUESTABLE_DOC_TYPES: { id: string; label: string }[] = [
+  { id: "cnic", label: "CNIC" },
+  { id: "bank_statement", label: "Bank / Mobile Wallet Statement" },
+  { id: "utility_bill", label: "Utility Bill" },
+  { id: "business_registration", label: "Business Registration Proof" },
+  { id: "property_document", label: "Property Ownership / Rent Agreement" },
+];
+
+// Every extracted-field key this pipeline produces (app/engine/extraction.py's
+// per-doc-type prompts, plus whatsapp-bot/src/flow.js's questionnaire
+// payload) mapped to a human label - not a generic underscore replace,
+// which is how "dob" and "pkr"-suffixed keys ended up on screen verbatim.
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  cnic: "CNIC",
+  dob: "Date of Birth",
+  address: "Address",
+  account_title: "Account Title",
+  avg_monthly_inflow_pkr: "Avg. Monthly Inflow",
+  avg_monthly_outflow_pkr: "Avg. Monthly Outflow",
+  months: "Months Covered",
+  end_balance_pkr: "Ending Balance",
+  bounced_cheques: "Bounced Cheques",
+  on_time: "Paid On Time",
+  months_history: "Billing History (months)",
+  business_name: "Business Name",
+  owner_name: "Owner Name",
+  ntn: "NTN",
+  registration_number: "Registration Number",
+  legal_structure: "Legal Structure",
+  registered_on: "Registered On",
+  issuing_authority: "Issuing Authority",
+  holder_name: "Holder Name",
+  tenure: "Tenure",
+  monthly_rent_pkr: "Monthly Rent",
+  agreement_start: "Agreement Start",
+  agreement_end: "Agreement End",
+  years_in_business: "Years in Business",
+  monthly_revenue_pkr: "Monthly Revenue",
+  employees: "Employees",
+  has_existing_loan: "Existing Loan",
+  business_type: "Business Type",
+  monthly_expenses_pkr: "Monthly Expenses",
+  net_monthly_cash_pkr: "Net Monthly Cash Flow",
+  tenor_months: "Requested Tenor (months)",
+  loan_purpose: "Loan Purpose",
+  consent_at: "Consent Given At",
+  existing_loan_amount_pkr: "Existing Loan Amount",
+  existing_installment_pkr: "Existing Loan Instalment",
+  premises_owned: "Premises Owned",
+  years_at_premises: "Years at Premises",
+};
+
+function humanizeFieldLabel(key: string): string {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  return key
+    .replace(/_pkr$/, "")
+    .split("_")
+    .map((w) => w[0]?.toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function formatFieldValue(key: string, value: any): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (key.endsWith("_pkr") && typeof value === "number") return `PKR ${value.toLocaleString()}`;
+  if (typeof value === "number") return value.toLocaleString();
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    }
+  }
+  // Enum-shaped values from vision extraction (e.g. "sole_proprietorship",
+  // "owned") - title-case them rather than showing the raw snake_case.
+  if (/^[a-z][a-z_]*$/.test(String(value))) {
+    return String(value).split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  }
+  return String(value);
+}
 
 export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string) => void, appId?: string }) {
   const [tab, setTab] = useState<DetailTab>("brief");
@@ -11,22 +104,28 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestDocType, setRequestDocType] = useState(REQUESTABLE_DOC_TYPES[0].id);
+  const [requestReason, setRequestReason] = useState("");
+  const [requesting, setRequesting] = useState(false);
+
+  const loadData = async () => {
+    if (!appId) return;
+    try {
+      const data = await fetchApplication(appId);
+      setApp(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!appId) {
       onNav("queue");
       return;
     }
-    const loadData = async () => {
-      try {
-        const data = await fetchApplication(appId);
-        setApp(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
     // In a real app we might poll, but for detail view one-time load is usually fine
   }, [appId, onNav]);
@@ -36,13 +135,32 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
     setSubmitting(true);
     try {
       await submitDecision(app.id, 'Loan Officer', action, `Decision: ${action}`);
-      const updatedApp = await fetchApplication(appId);
-      setApp(updatedApp);
+      await loadData();
     } catch (err: any) {
       alert("Error submitting decision: " + err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRequestDocs = async () => {
+    if (!app || !requestReason.trim()) return;
+    setRequesting(true);
+    try {
+      await submitDecision(app.id, 'Loan Officer', 'request_docs', requestReason.trim(), [requestDocType as any]);
+      await loadData();
+      setShowRequestModal(false);
+      setRequestReason("");
+    } catch (err: any) {
+      alert("Error requesting document: " + err.message);
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handlePrintBrief = () => {
+    setTab("brief");
+    setTimeout(() => window.print(), 100);
   };
 
   if (loading) {
@@ -73,11 +191,13 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
   }));
 
   const docItems = (app.documents || []).map((doc: any) => ({
+    id: doc.id,
     file: doc.filename,
-    type: doc.type.replace('_', ' '),
-    uploaded: new Date(doc.uploaded_at).toLocaleString(),
-    fields: Object.entries(doc.extracted_fields || {}).map(([k, v]) => ({ k: k.replace(/_/g, ' '), v: String(v) })),
-    flag: (doc.verification_flags && doc.verification_flags.length > 0) ? doc.verification_flags.join(', ') : null
+    type: doc.type,
+    typeLabel: DOC_TYPE_LABELS[doc.type] || doc.type,
+    uploaded: new Date(doc.uploaded_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+    fields: Object.entries(doc.extracted_fields || {}).map(([k, v]) => ({ k: humanizeFieldLabel(k), v: formatFieldValue(k, v) })),
+    flags: doc.verification_flags || [],
   }));
 
   const auditLog = (app.audit_trail || []).map((event: any) => ({
@@ -92,8 +212,16 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
 
   return (
     <DashboardShell onNav={onNav} active="queue">
+      {/* Print-only letterhead - shown only when printing/saving the brief as PDF */}
+      <div className="hidden print:flex items-center gap-3 mb-6">
+        <div>
+          <p className="font-bold text-lg" style={{ color: navy }}>Aitbaar — AI Credit Brief</p>
+          <p className="text-xs" style={{ color: "#64748B" }}>Generated {new Date().toLocaleString("en-GB")} · Recommendation only, not a final decision</p>
+        </div>
+      </div>
+
       {/* Header row */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex items-start justify-between mb-5 print:hidden">
         <div className="flex items-start gap-3">
           <button
             onClick={() => onNav("queue")}
@@ -119,12 +247,22 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* <button
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium hover:bg-gray-50 transition-colors"
-            style={{ borderColor: "rgba(15,23,42,0.1)", color: "#64748B" }}
+          <button
+            onClick={handlePrintBrief}
+            disabled={!app.score}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ borderColor: "rgba(15,23,42,0.1)", color: "#374151" }}
+            title={app.score ? "Opens your browser's print dialog — choose \"Save as PDF\" to download" : "No credit brief yet"}
           >
-            <Download size={14} /> Download Brief
-          </button> */}
+            <Printer size={14} /> Credit Brief
+          </button>
+          <button
+            onClick={() => setShowRequestModal(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+            style={{ borderColor: "rgba(15,23,42,0.1)", color: "#374151" }}
+          >
+            <FilePlus2 size={14} /> Request Documents
+          </button>
           {['scored', 'needs_docs', 'submitted'].includes(app.status) && (
             <>
               <button
@@ -152,15 +290,13 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
       {flags.map((flag: string, i: number) => (
         <div
             key={i}
-            className="flex items-start gap-3 px-4 py-3 rounded-xl border mb-5"
+            className="px-4 py-3 rounded-xl border mb-3"
             style={{ background: "#FFFBEB", borderColor: "rgba(201,162,39,0.3)" }}
         >
-            <AlertTriangle size={16} color={warning} className="shrink-0 mt-0.5" />
-            <p className="text-sm" style={{ color: "#92400E" }}>
-            {flag}
-            </p>
+          <FlagBadge flag={flag} />
         </div>
       ))}
+      {flags.length > 0 && <div className="mb-2" />}
 
       {/* AI Recommendation card */}
       {app.score && (
@@ -168,7 +304,6 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
         className="flex items-start gap-4 px-5 py-4 rounded-xl border-l-4 mb-6"
         style={{
           background: "white",
-          borderLeftColor: (s.recommended_action === 'APPROVE' ? success : s.recommended_action === 'DECLINE' ? danger : warning),
           border: "1px solid rgba(15,23,42,0.06)",
           borderLeft: `4px solid ${s.recommended_action === 'APPROVE' ? success : s.recommended_action === 'DECLINE' ? danger : warning}`,
           boxShadow: "0 1px 8px rgba(10,45,110,0.06)",
@@ -204,14 +339,14 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
       )}
 
       {/* Two-column layout */}
-      <div className="grid grid-cols-[280px_1fr] gap-5">
+      <div className="grid grid-cols-[280px_1fr] gap-5 print:grid-cols-1">
         {/* Left: Applicant profile */}
         <GlassCard className="p-5 h-fit">
           <h3 className="text-sm font-semibold mb-4" style={{ color: navy }}>Applicant Profile</h3>
           {[
             { label: "Date Applied", value: new Date(app.created_at).toLocaleDateString() },
             { label: "Phone", value: app.applicant.phone },
-            { label: "City", value: "Karachi" }, // Mocked or add to API
+            { label: "City", value: app.applicant.city || "—" },
             { label: "Channel", value: app.channel === 'whatsapp' ? 'WhatsApp' : 'Web', icon: app.channel === 'whatsapp' ? <MessageCircle size={12} color="#25D366" /> : <Globe size={12} color={blue} /> },
             { label: "Consent", value: app.applicant.consent_given ? "Granted ✓" : "Pending", ok: app.applicant.consent_given },
           ].map((r) => (
@@ -235,9 +370,9 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
         </GlassCard>
 
         {/* Right: tabs */}
-        <GlassCard className="overflow-hidden">
+        <GlassCard className="overflow-hidden print:shadow-none print:border-0">
           {/* Tab bar */}
-          <div className="flex border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+          <div className="flex border-b print:hidden" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
             {([
               { id: "brief", label: "AI Credit Brief" },
               { id: "documents", label: "Documents" },
@@ -339,13 +474,13 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
 
             {/* ── Documents ── */}
             {tab === "documents" && (
-              <div className="space-y-4">
+              <div className="space-y-4 print:hidden">
                 {docItems.length === 0 && <div className="text-center text-sm text-gray-500 py-8">No documents uploaded.</div>}
-                {docItems.map((doc: any, idx: number) => (
+                {docItems.map((doc: any) => (
                   <div
-                    key={idx}
+                    key={doc.id}
                     className="rounded-xl p-4 border"
-                    style={{ borderColor: doc.flag ? "rgba(220,38,38,0.2)" : "rgba(15,23,42,0.07)" }}
+                    style={{ borderColor: doc.flags.length > 0 ? "rgba(220,38,38,0.2)" : "rgba(15,23,42,0.07)" }}
                   >
                     <div className="flex items-start gap-3 mb-3">
                       <div
@@ -355,27 +490,29 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
                         <FileText size={16} color={blue} />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold" style={{ color: navy }}>{doc.file}</p>
-                        <p className="text-xs" style={{ color: "#64748B" }}>{doc.type} · {doc.uploaded}</p>
+                        <p className="text-sm font-semibold" style={{ color: navy }}>{doc.typeLabel}</p>
+                        <p className="text-xs" style={{ color: "#94A3B8" }}>Uploaded {doc.uploaded}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mb-2">
-                      {doc.fields.map((f: any, i: number) => (
-                        <div key={i} className="flex justify-between text-xs">
-                          <span style={{ color: "#64748B" }}>{f.k}</span>
-                          <span className="font-medium" style={{ color: navy }}>{f.v}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {doc.flag && (
-                      <div
-                        className="flex items-center gap-2 text-xs mt-2 px-3 py-2 rounded-lg"
-                        style={{ background: "#FEF2F2", color: danger }}
-                      >
-                        <AlertTriangle size={12} />
-                        {doc.flag}
+                    {doc.fields.length > 0 && (
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mb-2">
+                        {doc.fields.map((f: any, i: number) => (
+                          <div key={i} className="flex justify-between text-xs">
+                            <span style={{ color: "#64748B" }}>{f.k}</span>
+                            <span className="font-medium" style={{ color: navy }}>{f.v}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
+                    {doc.flags.map((flag: string, i: number) => (
+                      <div
+                        key={i}
+                        className="text-xs mt-2 px-3 py-2 rounded-lg"
+                        style={{ background: "#FEF2F2" }}
+                      >
+                        <FlagBadge flag={flag} />
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -383,7 +520,7 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
 
             {/* ── Audit Trail ── */}
             {tab === "audit" && (
-              <div className="relative">
+              <div className="relative print:hidden">
                 {auditLog.length === 0 && <div className="text-center text-sm text-gray-500 py-8">No audit trail events.</div>}
                 {auditLog.map((entry: any, i: number) => (
                   <div key={i} className="flex gap-4 mb-1">
@@ -416,6 +553,59 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
           </div>
         </GlassCard>
       </div>
+
+      {showRequestModal && (
+        <Modal title="Request a document" onClose={() => setShowRequestModal(false)}>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: "#64748B" }}>
+                Document
+              </label>
+              <select
+                value={requestDocType}
+                onChange={(e) => setRequestDocType(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                style={{ borderColor: "rgba(15,23,42,0.12)", color: navy }}
+              >
+                {REQUESTABLE_DOC_TYPES.map((d) => (
+                  <option key={d.id} value={d.id}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: "#64748B" }}>
+                Reason for requesting this document
+              </label>
+              <textarea
+                value={requestReason}
+                onChange={(e) => setRequestReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Bank statement only covers 3 months, need the full 6."
+                className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none resize-none"
+                style={{ borderColor: "rgba(15,23,42,0.12)", color: navy }}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 cursor-pointer"
+                style={{ color: "#64748B" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestDocs}
+                disabled={requesting || !requestReason.trim()}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
+                style={{ background: `linear-gradient(135deg, ${blue}, ${navy})` }}
+              >
+                {requesting ? <Loader2 size={14} className="animate-spin" /> : <FilePlus2 size={14} />}
+                Send Request
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </DashboardShell>
   );
 }

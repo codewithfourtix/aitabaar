@@ -116,6 +116,7 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
               value={uniqueUsers.toString()}
               sub={`unique applicants, WhatsApp`}
               iconBg="#F0FFF4"
+              accent="#25D366"
             />
             <StatCard
               icon={<FileText size={20} color={blue} />}
@@ -123,6 +124,7 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
               value={waCount.toString()}
               sub={`${waShare}% of ${total} total applications`}
               iconBg="#EFF6FF"
+              accent={blue}
             />
             <StatCard
               icon={<Clock size={20} color={warning} />}
@@ -130,6 +132,7 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
               value={reviewed.toString()}
               sub="scored or needs docs"
               iconBg="#FFFBEB"
+              accent={warning}
             />
             <StatCard
               icon={<CheckCircle2 size={20} color={success} />}
@@ -137,6 +140,7 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
               value={decided.toString()}
               sub="approved or rejected"
               iconBg="#ECFDF5"
+              accent={success}
             />
           </div>
 
@@ -212,7 +216,7 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-blue-50 cursor-pointer"
                         style={{ color: blue }}
                       >
-                        Review →
+                        View More →
                       </button>
                     </td>
                   </tr>

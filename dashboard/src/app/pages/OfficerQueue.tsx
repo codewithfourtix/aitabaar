@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, Globe, RefreshCw, FileText, Users, TrendingUp, Clock, Loader2, AlertTriangle } from "lucide-react";
+import { MessageCircle, Globe, FileText, Users, TrendingUp, Clock, Loader2, AlertTriangle } from "lucide-react";
 import { DashboardShell, GlassCard, Badge, BadgeColor, StatCard, navy, blue, success, warning, danger, indigo } from "../shared";
-import { fetchApplications, demoReset } from "../../services/api";
+import { fetchApplications } from "../../services/api";
 
 type FilterTab = "All" | "Submitted" | "Scored" | "Needs Docs" | "Decided";
 
@@ -36,17 +36,39 @@ const getRiskColor = (risk: string): BadgeColor => {
     }
 }
 
+/** Average hours between "submitted" and the officer's actual approve/reject
+ * (POST /applications/{id}/decision - not the AI's "decided" recommendation
+ * stage, which happens in seconds and would understate this). Real
+ * audit-trail math, not a placeholder - returns null (rendered as "—")
+ * until at least one application has actually been decided by an officer,
+ * rather than showing a made-up number. */
+function avgDecisionHours(apps: any[]): number | null {
+  const durations: number[] = [];
+  for (const app of apps) {
+    const trail = app.audit_trail || [];
+    const submitted = trail.find((e: any) => e.action === "submitted");
+    const decided = [...trail].reverse().find((e: any) => e.action === "approve" || e.action === "reject");
+    if (submitted && decided) {
+      const hours = (new Date(decided.at).getTime() - new Date(submitted.at).getTime()) / 3_600_000;
+      if (hours >= 0) durations.push(hours);
+    }
+  }
+  if (durations.length === 0) return null;
+  return durations.reduce((a, b) => a + b, 0) / durations.length;
+}
+
 export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: any) => void }) {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
   const [allApps, setAllApps] = useState<any[]>([]);
+  const [rawApps, setRawApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       const data = await fetchApplications();
-      
+      setRawApps(data);
+
       const mappedApps = data.map((app: any) => {
         const dateObj = new Date(app.created_at);
         const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -83,19 +105,8 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
     return () => clearInterval(interval);
   }, []);
 
-  const handleResetDemo = async () => {
-    setResetting(true);
-    try {
-      await demoReset();
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setResetting(false);
-    }
-  };
-
   const filtered = allApps.filter(tabFilter[activeTab]);
+  const avgHours = avgDecisionHours(rawApps);
 
   return (
     <DashboardShell onNav={onNav} active="queue">
@@ -105,23 +116,12 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
           <h1 className="text-2xl font-bold" style={{ color: navy }}>Application Queue</h1>
           <p className="text-sm mt-1" style={{ color: "#64748B" }}>Review and decision pending applications</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="px-3 py-1.5 rounded-full text-xs font-semibold"
-            style={{ background: "#EFF6FF", color: blue }}
-          >
-            Total Applications: {allApps.length}
-          </span>
-          <button
-            onClick={handleResetDemo}
-            disabled={resetting}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
-            style={{ borderColor: "rgba(15,23,42,0.1)", color: "#64748B" }}
-          >
-            {resetting ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            Reset Demo
-          </button>
-        </div>
+        <span
+          className="px-3 py-1.5 rounded-full text-xs font-semibold h-fit"
+          style={{ background: "#EFF6FF", color: blue }}
+        >
+          Total Applications: {allApps.length}
+        </span>
       </div>
 
       {error && (
@@ -135,10 +135,17 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard icon={<Users size={20} color={blue} />} label="Total" value={allApps.length.toString()} sub="all channels" iconBg="#EFF6FF" />
-        <StatCard icon={<FileText size={20} color={indigo} />} label="Needs Review" value={allApps.filter(a => ['scored', 'submitted', 'needs docs'].includes(a.status)).length.toString()} sub="scored or submitted" iconBg="#EEF2FF" />
-        <StatCard icon={<TrendingUp size={20} color={success} />} label="Approved" value={allApps.filter(a => a.status === 'approved').length.toString()} sub="this week" iconBg="#ECFDF5" />
-        <StatCard icon={<Clock size={20} color={warning} />} label="Avg. Decision" value="18 h" sub="from submission" iconBg="#FFFBEB" />
+        <StatCard icon={<Users size={20} color={blue} />} label="Total" value={allApps.length.toString()} sub="all channels" iconBg="#EFF6FF" accent={blue} />
+        <StatCard icon={<FileText size={20} color={indigo} />} label="Needs Review" value={allApps.filter(a => ['scored', 'submitted', 'needs docs'].includes(a.status)).length.toString()} sub="scored or submitted" iconBg="#EEF2FF" accent={indigo} />
+        <StatCard icon={<TrendingUp size={20} color={success} />} label="Approved" value={allApps.filter(a => a.status === 'approved').length.toString()} sub="this week" iconBg="#ECFDF5" accent={success} />
+        <StatCard
+          icon={<Clock size={20} color={warning} />}
+          label="Avg. Decision"
+          value={avgHours === null ? "—" : avgHours < 1 ? `${Math.round(avgHours * 60)} min` : `${Math.round(avgHours)} h`}
+          sub={avgHours === null ? "no decisions yet" : "from submission"}
+          iconBg="#FFFBEB"
+          accent={warning}
+        />
       </div>
 
       {/* Filter tabs */}
@@ -251,7 +258,7 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-blue-50 cursor-pointer"
                     style={{ color: blue }}
                   >
-                    Review →
+                    View More →
                   </button>
                 </td>
               </tr>
