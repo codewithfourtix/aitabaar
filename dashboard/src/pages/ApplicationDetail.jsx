@@ -96,10 +96,14 @@ function printBrief(app) {
   };
 }
 
+// Must stay in step with DocumentType in backend/app/models/schemas.py —
+// anything missing here is a document the officer cannot ask for.
 const DOC_TYPE_OPTIONS = [
   { value: 'cnic', label: 'CNIC (front)' },
-  { value: 'bank_statement', label: 'Bank statement (last 6 months)' },
+  { value: 'bank_statement', label: 'Bank or JazzCash/Easypaisa statement (last 6 months)' },
   { value: 'utility_bill', label: 'Electricity/gas bill' },
+  { value: 'business_registration', label: 'Business registration proof (NTN, trade license, deed)' },
+  { value: 'property_document', label: 'Premises ownership proof or rent agreement' },
 ];
 
 const ApplicationDetail = () => {

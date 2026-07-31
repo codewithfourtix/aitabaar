@@ -34,9 +34,14 @@ class ApplicationStatus(str, Enum):
 
 class DocumentType(str, Enum):
     cnic = "cnic"
-    bank_statement = "bank_statement"
+    bank_statement = "bank_statement"          # bank OR JazzCash/Easypaisa — same purpose: proof of cash flow
     utility_bill = "utility_bill"
     business_questionnaire = "business_questionnaire"
+    # Optional tier — offered after the 3 required docs, skippable.
+    business_registration = "business_registration"
+    # Conditional tier — requested only above SBP R-8's clean-facility limit
+    # (PKR 5,000,000), where a facility needs to be secured.
+    property_document = "property_document"
 
 
 class Document(BaseModel):

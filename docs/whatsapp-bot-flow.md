@@ -11,23 +11,54 @@ The bot is a state machine keyed by the applicant's phone number. It talks to th
 ## States
 
 ```
-START → LANGUAGE → CONSENT (includes full doc checklist) → QUESTIONS (5) → DOC_CNIC → DOC_BANK → DOC_UTILITY → CONFIRM → SUBMITTED
-                       ↓ (declined)                                                                                  ↑
-                      END                                         NEEDS_DOCS (officer requested ONE item) ───────────┘
+START → LANGUAGE → CONSENT (includes full doc checklist) → QUESTIONS (10) → DOC_CNIC → DOC_BANK → DOC_UTILITY
+                       ↓ (declined)                                                                    ↓
+                      END                                                                        DOC_OPTIONAL
+                                                                                                       ↓
+                                                              DOC_PROPERTY (only if amount ≥ PKR 5,000,000)
+                                                                                                       ↓
+                                       NEEDS_DOCS (officer requested ONE item) ──────────────► CONFIRM → SUBMITTED
 ```
 
 | State | Bot sends | Accepts | On success → | API call |
 |---|---|---|---|---|
 | START | greeting (trigger word: "loan" or anything) + what Aitbaar is | anything | LANGUAGE | — |
-| LANGUAGE | "English ya اردو?" (buttons) | choice | CONSENT | — |
-| CONSENT | **the complete document checklist (CNIC photo, 6-month bank statement, utility bill) + the 5 questions preview + consent text**: docs are processed by AI to assess the loan; the officer makes the final decision. Agree / Cancel | choice | QUESTIONS / END | — |
-| QUESTIONS | the 5 questions, one at a time: **business type → years trading → monthly sales (PKR) → amount needed (PKR) → purpose** | text/number | DOC_CNIC | `POST /applications` after last answer (consent_given: true, timestamped consent stored) |
+| LANGUAGE | "English ya اردو?" | choice | CONSENT | — |
+| CONSENT | **the complete document checklist (CNIC, 6-month bank *or* JazzCash/Easypaisa statement, utility bill) + the 10 questions preview + consent text**: docs are processed by AI to assess the loan; the officer makes the final decision. Agree / Cancel | choice | QUESTIONS / END | — |
+| QUESTIONS | the 10 questions, one at a time (see below) | text/number | DOC_CNIC | `POST /applications` after the last answer (consent_given: true, timestamped consent stored), then the questionnaire as `type=business_questionnaire` |
 | DOC_CNIC | "CNIC ki photo bhejein" | image | DOC_BANK | `POST /applications/{id}/documents` `type=cnic` — confirm each file as it lands |
-| DOC_BANK | "6 mahine ki bank statement — PDF ya photos" | pdf/images | DOC_UTILITY | same, `type=bank_statement` |
-| DOC_UTILITY | "Bijli/gas ka bill" | image/pdf | CONFIRM | same, `type=utility_bill` |
-| CONFIRM | summary + reference number + "Submit?" | choice | SUBMITTED | `POST /applications/{id}/submit` |
-| SUBMITTED | "Shukriya! Aapko branch aane ki zaroorat nahi. Status yahin milega — type **status**." | — | — | — |
+| DOC_BANK | "6 mahine ki bank ya JazzCash/Easypaisa statement — PDF ya photos" | pdf/images | DOC_UTILITY | same, `type=bank_statement` |
+| DOC_UTILITY | "Bijli/gas ka bill" | image/pdf | DOC_OPTIONAL | same, `type=utility_bill` |
+| DOC_OPTIONAL | business registration proof — **optional**, "reply SKIP to continue" | file *or* SKIP | DOC_PROPERTY if amount ≥ 5,000,000, else CONFIRM | same, `type=business_registration` |
+| DOC_PROPERTY | premises ownership proof or rent agreement — **conditional** | image/pdf | CONFIRM | same, `type=property_document` |
+| CONFIRM | summary + "Submit?" | choice | SUBMITTED | `POST /applications/{id}/submit` |
+| SUBMITTED | "Aapko branch aane ki zaroorat nahi. Status yahin milega — type **status**." | — | — | — |
 | NEEDS_DOCS | "Officer ne sirf yeh ek cheez mangi hai: X — <officer note>. Photo bhejein." | file | CONFIRM | `POST .../documents` then `/submit` |
+
+### The 10 questions
+
+Grounded in the State Bank of Pakistan's Prudential Regulations for SME Financing, not just intake polish:
+
+| # | Question | Why | Questionnaire key |
+|---|---|---|---|
+| 1 | Legal structure | SBP's Borrower's Basic Fact Sheet leads with "Business Status" | `legal_structure` |
+| 2 | Business type / sector | scoring feature | `business_type` |
+| 3 | Years trading | scoring feature | `years_in_business` |
+| 4 | Number of employees | SBP SE R-1 small-enterprise threshold (≤50 staff *and* ≤PKR 150M turnover) | `employees` |
+| 5 | Average monthly sales (PKR) | scoring feature | `monthly_revenue_pkr` |
+| 6 | Average monthly expenses (PKR) | turns top-line sales into a net cash-flow signal | `monthly_expenses_pkr`, `net_monthly_cash_pkr` |
+| 7 | Existing loans / credit outstanding | SBP SME R-2(ii) — banks must reconcile e-CIB against declared facilities | `has_existing_loan`, `existing_loan_amount_pkr` |
+| 8 | Requested amount (PKR) | drives the conditional premises document at ≥5,000,000 | on the Application itself |
+| 9 | Requested repayment period | every real loan application asks | `tenor_months` |
+| 10 | Loan purpose | officer context | `loan_purpose` |
+
+**Key names are load-bearing.** `scoring.py`'s `_FIELD_SOURCES` reads specific keys off the questionnaire document; anything it cannot find falls back to a dataset median and lowers `data_completeness`. `employees` and `has_existing_loan` are real model features — they must be spelled exactly as above.
+
+`existing_installment_pkr` is a model feature that intake still does **not** collect: Q7 asks for the *outstanding amount*, which is a different quantity from a monthly instalment, so the bot deliberately leaves it unset rather than feeding the model a wrong-scale number. Same for `registered`, `premises_owned` and `years_at_premises` — still median fallbacks.
+
+## Tone
+
+Bank-grade register, not consumer chat. **No decorative glyphs in any string** — what would be an emoji status marker is a bold text label instead (`*Received:* CNIC`, never `✅ CNIC received`). "Assalam o Alaikum" and "Mubarak ho" stay: that is standard formal Pakistani banking register. The applicant is being told about a financial decision, so exclamatory copy reads as unserious next to it.
 
 ## Global commands (any state)
 
@@ -41,7 +72,7 @@ START → LANGUAGE → CONSENT (includes full doc checklist) → QUESTIONS (5) �
 | `submitted` / `processing` | "Zair-e-jaiza. Hum yahin update denge." |
 | `scored` | "Loan officer review kar rahe hain." — **never reveal score/tier/factors** |
 | `needs_docs` | the ONE requested item + officer note → NEEDS_DOCS |
-| `approved` | "Mubarak ho! 🎉 PKR X approved. Branch aap se raabta karegi." |
+| `approved` | "Mubarak ho. PKR X approved. Branch aap se raabta karegi." |
 | `rejected` | polite decline + reapply-after-3-months path. No score details. |
 
 ## Implementation notes
@@ -57,6 +88,6 @@ START → LANGUAGE → CONSENT (includes full doc checklist) → QUESTIONS (5) �
 ## Demo path (from the submitted blueprint, ≤3 min)
 
 1. "loan" → Urdu reply with **full checklist up front** + consent captured & timestamped.
-2. 5 answers → CNIC photo, bank statement PDF, utility bill → reference number, "no branch visit needed."
+2. 10 answers → CNIC photo, bank/wallet statement PDF, utility bill, skip the optional registration doc → reference number, "no branch visit needed."
 3. Officer side: file moves Extracting → Verifying → Scoring → Brief ready; approves clean file; requests ONE doc on the fraud-flag file.
 4. Applicant receives outcome (or the single missing item) on WhatsApp in Urdu.

@@ -1,79 +1,244 @@
 // All user-facing bot text lives here — no hardcoded strings in handlers.
-// Rule from docs/whatsapp-bot-flow.md: the COMPLETE document checklist is
+// Rules from docs/whatsapp-bot-flow.md: the COMPLETE document checklist is
 // declared up front (in CONSENT), and the applicant NEVER sees score/tier.
+//
+// Register: bank-grade, not consumer-chat. No decorative glyphs anywhere —
+// what would have been an emoji status marker ("✅ received") is a bold text
+// label ("*Received:* CNIC") instead. "Assalam o Alaikum" and "Mubarak ho"
+// stay: that is standard formal Pakistani banking register, not slang.
 
 const STRINGS = {
   greeting: {
-    en: 'Assalam o Alaikum! 👋 This is *Aitbaar* (اعتبار) — apply for a UBL SME business loan right here on WhatsApp. No branch visits, no surprises.\n\nReply *1* for English\nجواب دیں *2* اردو کے لیے',
-    ur: '', // greeting is bilingual by design
+    en:
+      'Assalam o Alaikum. This is *Aitbaar* (اعتبار) — apply for a UBL SME business loan on WhatsApp. ' +
+      'No branch visits, no surprises.\n\nReply *1* for English\nجواب دیں *2* اردو کے لیے',
+    ur: '', // greeting is bilingual by design — same message either way
   },
   consent: {
     en:
-      'Great! Here is *everything* you will need — the full list, up front:\n\n' +
-      '📋 *Documents (photos are fine):*\n1. CNIC (front)\n2. Bank statement — last 6 months (PDF or photos)\n3. A recent electricity/gas bill\n\n' +
-      '❓ Plus 5 short questions about your business.\n\n' +
-      '🔒 *Consent:* Your documents will be processed by AI to assess your loan application. A UBL loan officer — a human — makes the final decision. Your data is used only for this application.\n\n' +
+      'Here is the complete list of what you will need:\n\n' +
+      '*Documents (clear photos are acceptable):*\n' +
+      '1. CNIC (front)\n' +
+      '2. Bank statement, *or* JazzCash/Easypaisa statement — last 6 months\n' +
+      '3. A recent electricity or gas bill\n\n' +
+      'Plus 10 short questions about your business.\n\n' +
+      '*Consent:* Your documents will be processed by AI to assess your loan application. ' +
+      'A UBL loan officer — a human — makes the final decision. Your data is used only for this application.\n\n' +
       'Reply *YES* to agree and begin, or *NO* to stop.',
     ur:
-      'زبردست! یہ رہی *مکمل فہرست* — پہلے ہی سب کچھ، کوئی چکر نہیں:\n\n' +
-      '📋 *دستاویزات (تصویریں کافی ہیں):*\n۱۔ شناختی کارڈ (سامنے کا رخ)\n۲۔ بینک اسٹیٹمنٹ — آخری ۶ ماہ (PDF یا تصویریں)\n۳۔ حالیہ بجلی یا گیس کا بل\n\n' +
-      '❓ اور کاروبار کے بارے میں ۵ مختصر سوالات۔\n\n' +
-      '🔒 *رضامندی:* آپ کی دستاویزات AI کے ذریعے قرض کی جانچ کے لیے استعمال ہوں گی۔ حتمی فیصلہ UBL کا لون آفیسر — ایک انسان — کرے گا۔ آپ کا ڈیٹا صرف اسی درخواست کے لیے استعمال ہوگا۔\n\n' +
-      'شروع کرنے کے لیے *HAAN* لکھیں، رکنے کے لیے *NO*۔',
+      'یہ رہی *مکمل فہرست* — پہلے ہی سب کچھ:\n\n' +
+      '*دستاویزات (صاف تصویریں قابلِ قبول ہیں):*\n' +
+      '۱۔ شناختی کارڈ (سامنے کا رخ)\n' +
+      '۲۔ بینک اسٹیٹمنٹ، *یا* جاز کیش/ایزی پیسہ اسٹیٹمنٹ — آخری ۶ ماہ\n' +
+      '۳۔ حالیہ بجلی یا گیس کا بل\n\n' +
+      'اس کے علاوہ کاروبار کے بارے میں ۱۰ مختصر سوالات۔\n\n' +
+      '*رضامندی:* آپ کی دستاویزات AI کے ذریعے قرض کی درخواست جانچنے کے لیے استعمال ہوں گی۔ ' +
+      'حتمی فیصلہ UBL کا لون آفیسر — ایک انسان — کرے گا۔ آپ کا ڈیٹا صرف اسی درخواست کے لیے استعمال ہوگا۔\n\n' +
+      'اتفاق اور آغاز کے لیے *HAAN* لکھیں، یا رکنے کے لیے *NO*۔',
   },
   consentDeclined: {
-    en: 'No problem. Nothing has been saved. Message us any time — we are here. 🙏',
-    ur: 'کوئی بات نہیں۔ کچھ محفوظ نہیں کیا گیا۔ جب چاہیں پیغام بھیجیں۔ 🙏',
+    en: 'Understood. Nothing has been saved. You may message us again at any time.',
+    ur: 'کوئی بات نہیں۔ کچھ محفوظ نہیں کیا گیا۔ جب چاہیں دوبارہ پیغام بھیجیں۔',
   },
-  qName: { en: 'First, your full name (as on CNIC)?', ur: 'سب سے پہلے، آپ کا پورا نام (شناختی کارڈ کے مطابق)؟' },
-  qBusinessName: { en: 'Your business name?', ur: 'آپ کے کاروبار کا نام؟' },
-  qBusinessType: { en: '*Question 1/5:* What type of business? (e.g. general store, wholesale, food, textile)', ur: '*سوال ۱/۵:* کاروبار کی قسم؟ (مثلاً جنرل اسٹور، ہول سیل، کھانا، کپڑا)' },
-  qYears: { en: '*Question 2/5:* How many years have you been trading?', ur: '*سوال ۲/۵:* کاروبار کو کتنے سال ہو گئے؟' },
-  qMonthlySales: { en: '*Question 3/5:* Average monthly sales, in PKR? (e.g. 400000)', ur: '*سوال ۳/۵:* ماہانہ اوسط فروخت، روپوں میں؟ (مثلاً 400000)' },
-  qAmount: { en: '*Question 4/5:* How much loan do you need, in PKR? (e.g. 1500000)', ur: '*سوال ۴/۵:* آپ کو کتنا قرض چاہیے، روپوں میں؟ (مثلاً 1500000)' },
-  qPurpose: { en: '*Question 5/5:* What is the loan for? (e.g. stock for Ramzan, new machine)', ur: '*سوال ۵/۵:* قرض کس مقصد کے لیے؟ (مثلاً رمضان کا اسٹاک، نئی مشین)' },
-  askCnic: { en: 'Now the documents — 1 of 3.\n📷 Send a photo of your *CNIC (front)*.', ur: 'اب دستاویزات — ۱/۳۔\n📷 اپنے *شناختی کارڈ (سامنے کا رخ)* کی تصویر بھیجیں۔' },
-  askBank: { en: '✅ CNIC received.\n2 of 3: send your *bank statement, last 6 months* (PDF or photos).', ur: '✅ شناختی کارڈ مل گیا۔\n۲/۳: *آخری ۶ ماہ کی بینک اسٹیٹمنٹ* بھیجیں (PDF یا تصویریں)۔' },
-  askUtility: { en: '✅ Bank statement received.\n3 of 3: send a recent *electricity or gas bill*.', ur: '✅ بینک اسٹیٹمنٹ مل گئی۔\n۳/۳: حالیہ *بجلی یا گیس کا بل* بھیجیں۔' },
-  expectedDocument: { en: 'Please send a photo or PDF for this step. Type *help* if you are stuck.', ur: 'براہ کرم اس مرحلے کے لیے تصویر یا PDF بھیجیں۔ مدد کے لیے *madad* لکھیں۔' },
+
+  qName: {
+    en: 'First, your full name (as on CNIC)?',
+    ur: 'سب سے پہلے، آپ کا پورا نام (شناختی کارڈ کے مطابق)؟',
+  },
+  qBusinessName: {
+    en: 'Your registered or trading business name?',
+    ur: 'آپ کے کاروبار کا (رجسٹرڈ یا مروجہ) نام؟',
+  },
+
+  // The 10 business questions (spec §4) — each maps to a real SBP Prudential
+  // Regulations intake requirement; see docs/whatsapp-bot-flow.md.
+  qLegalStructure: {
+    en: "*Question 1/10:* What is your business's legal structure? (e.g. sole proprietorship, partnership, private limited company)",
+    ur: '*سوال ۱/۱۰:* آپ کے کاروبار کی قانونی نوعیت کیا ہے؟ (مثلاً واحد ملکیت، پارٹنرشپ، پرائیویٹ لمیٹڈ کمپنی)',
+  },
+  qBusinessType: {
+    en: '*Question 2/10:* What type of business? (e.g. general store, wholesale, food, textile)',
+    ur: '*سوال ۲/۱۰:* کاروبار کی قسم؟ (مثلاً جنرل اسٹور، ہول سیل، کھانا، کپڑا)',
+  },
+  qYears: {
+    en: '*Question 3/10:* How many years have you been trading?',
+    ur: '*سوال ۳/۱۰:* کاروبار کو کتنے سال ہو گئے؟',
+  },
+  qEmployees: {
+    en: '*Question 4/10:* How many people work at your business, including yourself?',
+    ur: '*سوال ۴/۱۰:* آپ کے کاروبار میں (خود سمیت) کتنے افراد کام کرتے ہیں؟',
+  },
+  qMonthlySales: {
+    en: '*Question 5/10:* Average monthly sales, in PKR? (e.g. 400000)',
+    ur: '*سوال ۵/۱۰:* ماہانہ اوسط فروخت، روپوں میں؟ (مثلاً 400000)',
+  },
+  qMonthlyExpenses: {
+    en: '*Question 6/10:* Average monthly business expenses, in PKR — rent, salaries, utilities, supplies? (e.g. 250000)',
+    ur: '*سوال ۶/۱۰:* ماہانہ اوسط کاروباری اخراجات، روپوں میں — کرایہ، تنخواہیں، بجلی، خام مال؟ (مثلاً 250000)',
+  },
+  qExistingLoans: {
+    en: '*Question 7/10:* Do you currently have any outstanding loan or credit facility with any bank or lender? Reply *NO*, or *YES* followed by the amount (e.g. "YES 200000").',
+    ur: '*سوال ۷/۱۰:* کیا آپ پر کسی بینک یا ادارے کا کوئی قرض یا کریڈٹ سہولت واجب الادا ہے؟ *NO* لکھیں، یا *YES* کے ساتھ رقم درج کریں (مثلاً "YES 200000")۔',
+  },
+  qAmount: {
+    en: '*Question 8/10:* How much loan do you need, in PKR? (e.g. 1500000)',
+    ur: '*سوال ۸/۱۰:* آپ کو کتنا قرض درکار ہے، روپوں میں؟ (مثلاً 1500000)',
+  },
+  qTenor: {
+    en: '*Question 9/10:* Over how many months would you like to repay this loan? (e.g. 12)',
+    ur: '*سوال ۹/۱۰:* یہ قرض کتنے مہینوں میں ادا کرنا چاہیں گے؟ (مثلاً 12)',
+  },
+  qPurpose: {
+    en: '*Question 10/10:* What is the loan for? (e.g. stock for Ramzan, new machine)',
+    ur: '*سوال ۱۰/۱۰:* قرض کس مقصد کے لیے درکار ہے؟ (مثلاً رمضان کا اسٹاک، نئی مشین)',
+  },
+
+  askCnic: {
+    en: 'Now the documents — 1 of 3. Send a photo of your *CNIC (front)*.',
+    ur: 'اب دستاویزات — ۱/۳۔ اپنے *شناختی کارڈ (سامنے کا رخ)* کی تصویر بھیجیں۔',
+  },
+  askBank: {
+    en: '*Received:* CNIC.\n2 of 3 — send your *bank statement or JazzCash/Easypaisa statement, last 6 months* (PDF or photos).',
+    ur: '*موصول:* شناختی کارڈ۔\n۲/۳ — *بینک یا جاز کیش/ایزی پیسہ اسٹیٹمنٹ (آخری ۶ ماہ)* بھیجیں (PDF یا تصویریں)۔',
+  },
+  askUtility: {
+    en: '*Received:* statement.\n3 of 3 — send a recent *electricity or gas bill*.',
+    ur: '*موصول:* اسٹیٹمنٹ۔\n۳/۳ — حالیہ *بجلی یا گیس کا بل* بھیجیں۔',
+  },
+  askOptionalDocs: {
+    en:
+      'These documents are optional but can strengthen your application:\n' +
+      '• Business registration proof (NTN certificate, trade license, partnership deed, or trade body membership)\n\n' +
+      'Reply *SKIP* to continue without it, or send it now.',
+    ur:
+      'یہ دستاویز اختیاری ہے مگر درخواست مضبوط بناتی ہے:\n' +
+      '• کاروباری رجسٹریشن ثبوت (NTN سرٹیفکیٹ، ٹریڈ لائسنس، پارٹنرشپ ڈیڈ، یا ٹریڈ باڈی ممبرشپ)\n\n' +
+      'بغیر اس کے جاری رکھنے کے لیے *SKIP* لکھیں، یا ابھی بھیج دیں۔',
+  },
+  askPropertyDoc: {
+    en: 'For loan amounts of this size, please also send proof of ownership or a rent agreement for your business premises.',
+    ur: 'اس حجم کے قرض کے لیے، براہ کرم اپنے کاروباری مقام کی ملکیت کا ثبوت یا کرایہ نامہ بھی بھیجیں۔',
+  },
+  expectedDocument: {
+    en: 'Please send a photo or PDF for this step. Type *help* if you are stuck.',
+    ur: 'براہ کرم اس مرحلے کے لیے تصویر یا PDF بھیجیں۔ مدد کے لیے *madad* لکھیں۔',
+  },
   confirm: {
-    en: '✅ All documents received!\n\n*Summary:*\n{summary}\n\nReply *SUBMIT* to send your application to UBL.',
-    ur: '✅ تمام دستاویزات مل گئیں!\n\n*خلاصہ:*\n{summary}\n\nدرخواست UBL کو بھیجنے کے لیے *SUBMIT* لکھیں۔',
+    en: '*All documents received.*\n\n*Summary:*\n{summary}\n\nReply *SUBMIT* to send your application to UBL.',
+    ur: '*تمام دستاویزات موصول ہو گئیں۔*\n\n*خلاصہ:*\n{summary}\n\nدرخواست UBL کو بھیجنے کے لیے *SUBMIT* لکھیں۔',
   },
   submitted: {
-    en: '🎉 Done! Your application is submitted.\n\n*Reference: {ref}*\n\nYou do NOT need to visit any branch to apply. We will update you right here. Type *status* any time.',
-    ur: '🎉 ہو گیا! آپ کی درخواست جمع ہو گئی۔\n\n*ریفرنس نمبر: {ref}*\n\nدرخواست کے لیے آپ کو کسی برانچ جانے کی ضرورت *نہیں*۔ ہر اپڈیٹ یہیں ملے گی۔ کسی بھی وقت *status* لکھیں۔',
+    en: 'Your application has been submitted.\n\n*Reference: {ref}*\n\nNo branch visit is required. We will update you here. Type *status* at any time.',
+    ur: 'آپ کی درخواست جمع کر دی گئی ہے۔\n\n*ریفرنس نمبر: {ref}*\n\nکسی برانچ جانے کی ضرورت نہیں۔ ہر اپڈیٹ یہیں ملے گی۔ کسی بھی وقت *status* لکھیں۔',
   },
-  statusDraft: { en: 'Your application is incomplete — continue where you left off by replying here.', ur: 'آپ کی درخواست ادھوری ہے — یہیں جواب دے کر جاری رکھیں۔' },
-  statusInReview: { en: '⏳ Reference {ref}: under review. We will message you here as soon as there is news.', ur: '⏳ ریفرنس {ref}: زیرِ جائزہ ہے۔ کوئی بھی خبر ملتے ہی ہم یہیں پیغام بھیجیں گے۔' },
-  statusScored: { en: '⏳ Reference {ref}: with our loan officer for review.', ur: '⏳ ریفرنس {ref}: لون آفیسر کے پاس جائزے کے لیے ہے۔' },
+  statusDraft: {
+    en: 'Your application is incomplete — continue where you left off by replying here.',
+    ur: 'آپ کی درخواست ادھوری ہے — یہیں جواب دے کر جاری رکھیں۔',
+  },
+  statusInReview: {
+    en: 'Reference {ref}: under review. We will message you as soon as there is an update.',
+    ur: 'ریفرنس {ref}: زیرِ جائزہ ہے۔ اپڈیٹ ملتے ہی پیغام بھیجا جائے گا۔',
+  },
+  statusScored: {
+    en: 'Reference {ref}: with our loan officer for review.',
+    ur: 'ریفرنس {ref}: لون آفیسر کے پاس جائزے کے لیے ہے۔',
+  },
   needsDocs: {
-    en: '📄 Reference {ref}: the loan officer needs *one* more item:\n\n*{doc}*\n{note}\n\nJust send it here as a photo or PDF.',
-    ur: '📄 ریفرنس {ref}: لون آفیسر کو صرف *ایک* چیز درکار ہے:\n\n*{doc}*\n{note}\n\nبس یہیں تصویر یا PDF بھیج دیں۔',
+    en: 'Reference {ref}: the loan officer needs one more item:\n\n*{doc}*\n{note}\n\nPlease send it here as a photo or PDF.',
+    ur: 'ریفرنس {ref}: لون آفیسر کو صرف ایک چیز درکار ہے:\n\n*{doc}*\n{note}\n\nبراہ کرم یہیں تصویر یا PDF بھیج دیں۔',
   },
-  redocReceived: { en: '✅ Received — sending it to the officer now.', ur: '✅ مل گیا — ابھی آفیسر کو بھیج رہے ہیں۔' },
+  redocReceived: {
+    en: 'Received — forwarding it to the officer now.',
+    ur: 'موصول ہو گیا — ابھی آفیسر کو بھیجا جا رہا ہے۔',
+  },
   approved: {
-    en: '🎊 *Mubarak ho!* Reference {ref}: your loan of *PKR {amount}* has been APPROVED. The branch will contact you for signing. Apna karobar, apna aitbaar. 💪',
-    ur: '🎊 *مبارک ہو!* ریفرنس {ref}: آپ کا *{amount} روپے* کا قرض منظور ہو گیا ہے۔ دستخط کے لیے برانچ آپ سے رابطہ کرے گی۔ اپنا کاروبار، اپنا اعتبار۔ 💪',
+    en: '*Mubarak ho.* Reference {ref}: your loan of *PKR {amount}* has been approved. The branch will contact you to complete signing.',
+    ur: '*مبارک ہو۔* ریفرنس {ref}: آپ کا *{amount} روپے* کا قرض منظور ہو گیا ہے۔ دستخط کے لیے برانچ آپ سے رابطہ کرے گی۔',
   },
   rejected: {
-    en: 'Reference {ref}: we are sorry — we cannot offer a loan at this time. You can apply again after 3 months, and your record here stays with you. Thank you for trusting Aitbaar.',
-    ur: 'ریفرنس {ref}: معذرت — اس وقت قرض ممکن نہیں۔ آپ ۳ ماہ بعد دوبارہ درخواست دے سکتے ہیں، اور آپ کا ریکارڈ محفوظ رہے گا۔ اعتبار پر بھروسے کا شکریہ۔',
+    en: 'Reference {ref}: we are unable to offer a loan at this time. You may re-apply after 3 months, and your record here is retained. Thank you for choosing Aitbaar.',
+    ur: 'ریفرنس {ref}: اس وقت قرض ممکن نہیں۔ ۳ ماہ بعد دوبارہ درخواست دے سکتے ہیں، آپ کا ریکارڈ محفوظ رہے گا۔ اعتبار کا انتخاب کرنے کا شکریہ۔',
   },
-  help: { en: 'ℹ️ Current step: {step}\nCommands: *status* (check application) · *restart* (start over)', ur: 'ℹ️ موجودہ مرحلہ: {step}\nکمانڈز: *status* (درخواست دیکھیں) · *restart* (دوبارہ شروع کریں)' },
-  restartConfirm: { en: 'Start over? Your current progress will be lost. Reply *YES* to restart.', ur: 'دوبارہ شروع کریں؟ موجودہ پیشرفت ختم ہو جائے گی۔ *HAAN* لکھیں۔' },
-  invalidNumber: { en: 'Please reply with a number, e.g. 400000.', ur: 'براہ کرم صرف نمبر لکھیں، مثلاً 400000۔' },
-  noApplication: { en: 'No application found for this number yet. Reply *loan* to start one!', ur: 'اس نمبر سے ابھی کوئی درخواست نہیں ملی۔ شروع کرنے کے لیے *loan* لکھیں!' },
-  fallback: { en: 'Sorry, I did not understand that. {reprompt}', ur: 'معذرت، سمجھ نہیں آیا۔ {reprompt}' },
-  backendDown: { en: '⚠️ We are having a technical issue. Please try again in a few minutes.', ur: '⚠️ تکنیکی مسئلہ درپیش ہے۔ چند منٹ بعد دوبارہ کوشش کریں۔' },
+  help: {
+    en: 'Current step: {step}\nCommands: *status* (check application) · *restart* (start over)',
+    ur: 'موجودہ مرحلہ: {step}\nکمانڈز: *status* (درخواست دیکھیں) · *restart* (دوبارہ شروع کریں)',
+  },
+  restartConfirm: {
+    en: 'Start over? Your current progress will be lost. Reply *YES* to restart.',
+    ur: 'دوبارہ شروع کریں؟ موجودہ پیشرفت ختم ہو جائے گی۔ *HAAN* لکھیں۔',
+  },
+  invalidNumber: {
+    en: 'Please reply with a number, e.g. 400000.',
+    ur: 'براہ کرم صرف نمبر لکھیں، مثلاً 400000۔',
+  },
+  noApplication: {
+    en: 'No application found for this number yet. Reply *loan* to start one.',
+    ur: 'اس نمبر سے ابھی کوئی درخواست نہیں ملی۔ شروع کرنے کے لیے *loan* لکھیں۔',
+  },
+  fallback: {
+    en: "Sorry, that wasn't understood. {reprompt}",
+    ur: 'معذرت، سمجھ نہیں آیا۔ {reprompt}',
+  },
+  backendDown: {
+    en: 'We are experiencing a technical issue. Please try again shortly.',
+    ur: 'تکنیکی مسئلہ درپیش ہے۔ چند منٹ بعد دوبارہ کوشش کریں۔',
+  },
 };
 
 const DOC_LABELS = {
   cnic: { en: 'CNIC (front)', ur: 'شناختی کارڈ (سامنے کا رخ)' },
-  bank_statement: { en: 'Bank statement (last 6 months)', ur: 'بینک اسٹیٹمنٹ (آخری ۶ ماہ)' },
+  bank_statement: {
+    en: 'Bank or JazzCash/Easypaisa statement (last 6 months)',
+    ur: 'بینک یا جاز کیش/ایزی پیسہ اسٹیٹمنٹ (آخری ۶ ماہ)',
+  },
   utility_bill: { en: 'Electricity/gas bill', ur: 'بجلی یا گیس کا بل' },
   business_questionnaire: { en: 'Business questionnaire', ur: 'کاروباری سوالنامہ' },
+  business_registration: {
+    en: 'Business registration proof (NTN, trade license, partnership deed, or trade body membership)',
+    ur: 'کاروباری رجسٹریشن ثبوت (NTN، ٹریڈ لائسنس، پارٹنرشپ ڈیڈ، یا ٹریڈ باڈی ممبرشپ)',
+  },
+  property_document: {
+    en: 'Business premises ownership proof or rent agreement',
+    ur: 'کاروباری مقام کی ملکیت کا ثبوت یا کرایہ نامہ',
+  },
 };
+
+// Labels and value fragments for the CONFIRM summary block. Kept here with
+// everything else user-facing: the summary is shown inside an otherwise
+// fully-Urdu thread, so English labels would read as a half-finished
+// translation on the judges' screen.
+const SUMMARY = {
+  name: { en: 'Name', ur: 'نام' },
+  legalStructure: { en: 'Legal structure', ur: 'قانونی نوعیت' },
+  business: { en: 'Business', ur: 'کاروبار' },
+  monthlySales: { en: 'Monthly sales', ur: 'ماہانہ فروخت' },
+  monthlyExpenses: { en: 'Monthly expenses', ur: 'ماہانہ اخراجات' },
+  existingBorrowing: { en: 'Existing borrowing', ur: 'موجودہ قرض' },
+  requested: { en: 'Requested', ur: 'درخواست شدہ رقم' },
+  purpose: { en: 'Purpose', ur: 'مقصد' },
+  documents: { en: 'Documents', ur: 'دستاویزات' },
+  // value fragments
+  years: { en: 'years', ur: 'سال' },
+  staff: { en: 'staff', ur: 'افراد' },
+  months: { en: 'months', ur: 'مہینے' },
+  over: { en: 'over', ur: 'مدت' },
+  yes: { en: 'Yes', ur: 'ہاں' },
+  amountNotStated: { en: 'amount not stated', ur: 'رقم درج نہیں' },
+  noneDeclared: { en: 'None declared', ur: 'کوئی نہیں' },
+  pkr: { en: 'PKR', ur: 'روپے' },
+  // short document names for the summary line
+  docCnic: { en: 'CNIC', ur: 'شناختی کارڈ' },
+  docStatement: { en: 'statement', ur: 'اسٹیٹمنٹ' },
+  docUtility: { en: 'utility bill', ur: 'بجلی/گیس بل' },
+  docRegistration: { en: 'business registration', ur: 'کاروباری رجسٹریشن' },
+  docPremises: { en: 'premises proof', ur: 'مقام کا ثبوت' },
+};
+
+function summaryLabel(key, lang) {
+  const entry = SUMMARY[key];
+  if (!entry) return key;
+  return entry[lang] || entry.en;
+}
 
 function t(key, lang, vars = {}) {
   const entry = STRINGS[key];
@@ -91,4 +256,4 @@ function docLabel(type, lang) {
   return entry[lang] || entry.en;
 }
 
-module.exports = { t, docLabel, STRINGS, DOC_LABELS };
+module.exports = { t, docLabel, summaryLabel, STRINGS, DOC_LABELS, SUMMARY };

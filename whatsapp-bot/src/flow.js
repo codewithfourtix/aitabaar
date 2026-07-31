@@ -2,12 +2,17 @@
 // Spec: docs/whatsapp-bot-flow.md. In-memory by design (demo scope, decisions.md #7).
 
 const api = require('./api');
-const { t, docLabel } = require('./strings');
+const { t, docLabel, summaryLabel } = require('./strings');
 
 const sessions = new Map(); // phone -> { state, lang, appId, data, pendingDoc }
 
 const YES_WORDS = ['yes', 'haan', 'han', 'ہاں', 'جی', 'ji', 'y', '1', 'ok', 'submit'];
 const NO_WORDS = ['no', 'nahi', 'نہیں', 'n', '2', 'cancel'];
+const SKIP_WORDS = ['skip', 'no', 'nahi', 'نہیں', 'chhoro', 'chhorein', 'آگے'];
+
+// SBP Regulation R-8 puts the clean-facility ceiling here: above this a
+// facility needs to be secured, so we ask for premises proof (spec §5).
+const PROPERTY_DOC_THRESHOLD_PKR = 5000000;
 
 function getSession(phone) {
   if (!sessions.has(phone)) {
@@ -29,16 +34,82 @@ function parseNumber(text) {
   return digits ? parseInt(digits, 10) : null;
 }
 
+// Q7 accepts "NO", "YES", or "YES 200000". A bare YES is taken as a declared
+// facility with the amount unstated rather than re-prompting into a loop —
+// the SBP-relevant signal is the yes/no itself, and the officer still sees
+// that no amount was given.
+function parseExistingLoan(text) {
+  const lower = (text || '').trim().toLowerCase();
+  if (!lower) return null;
+  if (NO_WORDS.includes(lower) || lower.startsWith('no') || lower.startsWith('nahi')) {
+    return { has: false, amount: null };
+  }
+  if (lower.startsWith('yes') || lower.startsWith('haan') || lower.startsWith('han') || lower.startsWith('ہاں')) {
+    return { has: true, amount: parseNumber(lower) };
+  }
+  // A bare number is an unambiguous "yes, this much"
+  const amount = parseNumber(lower);
+  if (amount !== null) return { has: true, amount };
+  return null;
+}
+
 function summaryText(s) {
   const d = s.data;
+  const lang = s.lang;
+  const L = (k) => summaryLabel(k, lang);
+  const pkr = (n) => `${L('pkr')} ${fmtPkr(n)}`;
+
+  const borrowing = d.hasExistingLoan
+    ? d.existingLoanAmount != null
+      ? `${L('yes')} — ${pkr(d.existingLoanAmount)}`
+      : `${L('yes')} — ${L('amountNotStated')}`
+    : L('noneDeclared');
+
+  const docs = [L('docCnic'), L('docStatement'), L('docUtility')];
+  if (d.hasRegistrationDoc) docs.push(L('docRegistration'));
+  if (d.hasPropertyDoc) docs.push(L('docPremises'));
+
   return [
-    `• ${d.name} — ${d.businessName}`,
-    `• ${d.businessType}, ${d.years} years`,
-    `• Monthly sales: PKR ${fmtPkr(d.monthlySales)}`,
-    `• Requested: PKR ${fmtPkr(d.amount)}`,
-    `• Purpose: ${d.purpose}`,
-    `• Documents: CNIC ✅  Bank statement ✅  Utility bill ✅`,
+    `*${L('name')}:* ${d.name} — ${d.businessName}`,
+    `*${L('legalStructure')}:* ${d.legalStructure}`,
+    `*${L('business')}:* ${d.businessType}, ${d.years} ${L('years')}, ${d.employees} ${L('staff')}`,
+    `*${L('monthlySales')}:* ${pkr(d.monthlySales)}`,
+    `*${L('monthlyExpenses')}:* ${pkr(d.monthlyExpenses)}`,
+    `*${L('existingBorrowing')}:* ${borrowing}`,
+    `*${L('requested')}:* ${pkr(d.amount)} — ${L('over')} ${d.tenorMonths} ${L('months')}`,
+    `*${L('purpose')}:* ${d.purpose}`,
+    `*${L('documents')}:* ${docs.join(', ')}`,
   ].join('\n');
+}
+
+// The questionnaire travels to the backend as a JSON document. Key names are
+// NOT free-form: scoring.py's _FIELD_SOURCES reads specific keys off this
+// document, and any it cannot find falls back to a dataset median and drags
+// down data_completeness. employees / has_existing_loan are real model
+// features and are named to match exactly.
+//
+// existing_installment_pkr is deliberately NOT set: Q7 collects the
+// OUTSTANDING amount, which is a different quantity from a monthly
+// instalment. Writing one into the other would feed the model a wrong-scale
+// number. It stays on median fallback until intake asks for the instalment.
+function questionnairePayload(d) {
+  const answers = {
+    // consumed by scoring.py
+    years_in_business: d.years,
+    monthly_revenue_pkr: d.monthlySales,
+    employees: d.employees,
+    has_existing_loan: d.hasExistingLoan,
+    // officer-facing / verification context
+    business_type: d.businessType,
+    legal_structure: d.legalStructure,
+    monthly_expenses_pkr: d.monthlyExpenses,
+    net_monthly_cash_pkr: d.monthlySales - d.monthlyExpenses,
+    tenor_months: d.tenorMonths,
+    loan_purpose: d.purpose,
+    consent_at: d.consentAt,
+  };
+  if (d.existingLoanAmount != null) answers.existing_loan_amount_pkr = d.existingLoanAmount;
+  return answers;
 }
 
 async function uploadIncomingMedia(msg, s, docType) {
@@ -47,6 +118,18 @@ async function uploadIncomingMedia(msg, s, docType) {
   const ext = (media.mimetype || '').includes('pdf') ? 'pdf' : 'jpg';
   const filename = media.filename || `${docType}.${ext}`;
   await api.uploadDocument(s.appId, docType, buffer, filename, media.mimetype || 'image/jpeg');
+}
+
+// After the 3 required documents (and the optional/conditional tier), decide
+// where to go next. Kept in one place so DOC_UTILITY, DOC_OPTIONAL and
+// DOC_PROPERTY cannot drift apart.
+function afterOptionalDocs(s) {
+  if (s.data.amount >= PROPERTY_DOC_THRESHOLD_PKR && !s.data.hasPropertyDoc) {
+    s.state = 'DOC_PROPERTY';
+    return t('askPropertyDoc', s.lang);
+  }
+  s.state = 'CONFIRM';
+  return t('confirm', s.lang, { summary: summaryText(s) });
 }
 
 async function statusReply(s, phone) {
@@ -149,40 +232,81 @@ async function handleMessage(msg) {
     case 'Q_BUSINESS_NAME':
       if (!text) return t('qBusinessName', s.lang);
       s.data.businessName = text;
+      s.state = 'Q_LEGAL_STRUCTURE';
+      return t('qLegalStructure', s.lang);
+
+    // ── The 10 business questions (spec §4) ──────────────────
+
+    case 'Q_LEGAL_STRUCTURE': // 1/10
+      if (!text) return t('qLegalStructure', s.lang);
+      s.data.legalStructure = text;
       s.state = 'Q_BUSINESS_TYPE';
       return t('qBusinessType', s.lang);
 
-    case 'Q_BUSINESS_TYPE':
+    case 'Q_BUSINESS_TYPE': // 2/10
       if (!text) return t('qBusinessType', s.lang);
       s.data.businessType = text;
       s.state = 'Q_YEARS';
       return t('qYears', s.lang);
 
-    case 'Q_YEARS': {
+    case 'Q_YEARS': { // 3/10
       const years = parseNumber(text);
       if (years === null) return t('invalidNumber', s.lang);
       s.data.years = years;
+      s.state = 'Q_EMPLOYEES';
+      return t('qEmployees', s.lang);
+    }
+
+    case 'Q_EMPLOYEES': { // 4/10 — SBP small-enterprise threshold test
+      const employees = parseNumber(text);
+      if (employees === null) return t('invalidNumber', s.lang);
+      s.data.employees = employees;
       s.state = 'Q_MONTHLY_SALES';
       return t('qMonthlySales', s.lang);
     }
 
-    case 'Q_MONTHLY_SALES': {
+    case 'Q_MONTHLY_SALES': { // 5/10
       const sales = parseNumber(text);
       if (sales === null) return t('invalidNumber', s.lang);
       s.data.monthlySales = sales;
+      s.state = 'Q_MONTHLY_EXPENSES';
+      return t('qMonthlyExpenses', s.lang);
+    }
+
+    case 'Q_MONTHLY_EXPENSES': { // 6/10 — turns sales into a net cash signal
+      const expenses = parseNumber(text);
+      if (expenses === null) return t('invalidNumber', s.lang);
+      s.data.monthlyExpenses = expenses;
+      s.state = 'Q_EXISTING_LOANS';
+      return t('qExistingLoans', s.lang);
+    }
+
+    case 'Q_EXISTING_LOANS': { // 7/10 — SBP SME R-2(ii) e-CIB reconciliation
+      const parsed = parseExistingLoan(text);
+      if (parsed === null) return t('fallback', s.lang, { reprompt: t('qExistingLoans', s.lang) });
+      s.data.hasExistingLoan = parsed.has;
+      s.data.existingLoanAmount = parsed.amount;
       s.state = 'Q_AMOUNT';
       return t('qAmount', s.lang);
     }
 
-    case 'Q_AMOUNT': {
+    case 'Q_AMOUNT': { // 8/10
       const amount = parseNumber(text);
       if (amount === null) return t('invalidNumber', s.lang);
       s.data.amount = amount;
+      s.state = 'Q_TENOR';
+      return t('qTenor', s.lang);
+    }
+
+    case 'Q_TENOR': { // 9/10
+      const tenor = parseNumber(text);
+      if (tenor === null) return t('invalidNumber', s.lang);
+      s.data.tenorMonths = tenor;
       s.state = 'Q_PURPOSE';
       return t('qPurpose', s.lang);
     }
 
-    case 'Q_PURPOSE': {
+    case 'Q_PURPOSE': { // 10/10 — application is created once all answers are in
       if (!text) return t('qPurpose', s.lang);
       s.data.purpose = text;
       const app = await api.createApplication({
@@ -195,23 +319,18 @@ async function handleMessage(msg) {
       });
       s.appId = app.id;
       // Questionnaire answers travel as a document, per contract
-      const answers = {
-        business_type: s.data.businessType,
-        years_in_business: s.data.years,
-        monthly_revenue_pkr: s.data.monthlySales,
-        loan_purpose: s.data.purpose,
-        consent_at: s.data.consentAt,
-      };
       await api.uploadDocument(
         s.appId,
         'business_questionnaire',
-        Buffer.from(JSON.stringify(answers, null, 2)),
+        Buffer.from(JSON.stringify(questionnairePayload(s.data), null, 2)),
         'questionnaire.json',
         'application/json'
       );
       s.state = 'DOC_CNIC';
       return t('askCnic', s.lang);
     }
+
+    // ── Documents: 3 required, then optional, then conditional ──
 
     case 'DOC_CNIC':
       if (!msg.hasMedia) return t('expectedDocument', s.lang);
@@ -228,6 +347,22 @@ async function handleMessage(msg) {
     case 'DOC_UTILITY':
       if (!msg.hasMedia) return t('expectedDocument', s.lang);
       await uploadIncomingMedia(msg, s, 'utility_bill');
+      s.state = 'DOC_OPTIONAL';
+      return t('askOptionalDocs', s.lang);
+
+    case 'DOC_OPTIONAL':
+      if (msg.hasMedia) {
+        await uploadIncomingMedia(msg, s, 'business_registration');
+        s.data.hasRegistrationDoc = true;
+        return afterOptionalDocs(s);
+      }
+      if (SKIP_WORDS.includes(lower)) return afterOptionalDocs(s);
+      return t('fallback', s.lang, { reprompt: t('askOptionalDocs', s.lang) });
+
+    case 'DOC_PROPERTY':
+      if (!msg.hasMedia) return t('expectedDocument', s.lang);
+      await uploadIncomingMedia(msg, s, 'property_document');
+      s.data.hasPropertyDoc = true;
       s.state = 'CONFIRM';
       return t('confirm', s.lang, { summary: summaryText(s) });
 
@@ -285,4 +420,11 @@ function startPoller(client) {
   }, POLL_MS);
 }
 
-module.exports = { handleMessage, startPoller, sessions };
+module.exports = {
+  handleMessage,
+  startPoller,
+  sessions,
+  PROPERTY_DOC_THRESHOLD_PKR,
+  questionnairePayload,
+  parseExistingLoan,
+};

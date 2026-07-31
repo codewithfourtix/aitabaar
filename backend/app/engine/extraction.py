@@ -57,6 +57,37 @@ _PROMPTS: dict[DocumentType, str] = {
         "Return null for any field you cannot read confidently rather than guessing. "
         "The photo may be angled, low-light, or mix Urdu and English."
     ),
+    DocumentType.business_registration: (
+        "This is a Pakistani business registration document. It may be an FBR NTN "
+        "certificate, a trade license, a partnership deed, or a trade body / chamber "
+        "of commerce membership certificate. Extract these fields as JSON only, no "
+        "prose, no markdown fences: "
+        '{"business_name": string registered business name, '
+        '"owner_name": string proprietor/partner/director name if shown, '
+        '"ntn": string National Tax Number if shown, '
+        '"registration_number": string license or incorporation number if shown, '
+        '"legal_structure": one of "sole_proprietorship" | "partnership" | '
+        '"private_limited" | "other", '
+        '"registered_on": string YYYY-MM-DD if shown, '
+        '"issuing_authority": string e.g. FBR, SECP, the chamber name}. '
+        "Return null for any field you cannot read confidently rather than guessing. "
+        "The document may be angled, low-light, or mix Urdu and English."
+    ),
+    DocumentType.property_document: (
+        "This is a Pakistani document evidencing rights over business premises — "
+        "either proof of ownership (registry / sale deed / property tax receipt) or "
+        "a rent agreement. Extract these fields as JSON only, no prose, no markdown "
+        "fences: "
+        '{"holder_name": string owner or tenant named on the document, '
+        '"address": string address of the premises, '
+        '"tenure": "owned" if it evidences ownership or "rented" if it is a rent '
+        "or lease agreement, "
+        '"monthly_rent_pkr": number if it is a rent agreement else null, '
+        '"agreement_start": string YYYY-MM-DD if shown, '
+        '"agreement_end": string YYYY-MM-DD if shown}. '
+        "Return null for any field you cannot read confidently rather than guessing. "
+        "The document may be angled, low-light, or mix Urdu and English."
+    ),
 }
 
 _IMAGE_EXTENSIONS = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}

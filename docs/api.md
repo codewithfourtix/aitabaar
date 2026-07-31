@@ -70,7 +70,18 @@ Create a draft. Body (`ApplicationCreate`):
 
 ## 5. `POST /applications/{id}/documents`
 
-`multipart/form-data`: field `type` ∈ `cnic | bank_statement | utility_bill | business_questionnaire`, field `file` = the upload (jpg/png/pdf).
+`multipart/form-data`: field `type` ∈ `cnic | bank_statement | utility_bill | business_questionnaire | business_registration | property_document`, field `file` = the upload (jpg/png/pdf).
+
+Document tiers, as the applicant flow collects them (`docs/whatsapp-bot-flow.md`):
+
+| `type` | Tier | When |
+|---|---|---|
+| `cnic` | required | always |
+| `bank_statement` | required | always — accepts a **bank statement or a JazzCash/Easypaisa statement**; both are proof of cash flow, so they share one type |
+| `utility_bill` | required | always |
+| `business_questionnaire` | required | JSON, uploaded once the 10 questions are answered |
+| `business_registration` | optional | offered after the 3 required docs; applicant may reply `SKIP` |
+| `property_document` | conditional | only requested when `requested_amount_pkr >= 5000000` (SBP R-8 clean-facility limit) |
 
 → `201` the created `Document`:
 

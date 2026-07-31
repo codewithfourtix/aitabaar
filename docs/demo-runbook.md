@@ -19,7 +19,7 @@ No Railway/Vercel accounts needed beyond free tier. If Railway build fails on th
 
 **Cast: your phone = SME owner "behind his counter". Browser = UBL loan officer.**
 
-1. **Apply on WhatsApp** — send `loan` to the bot number → choose اردو → the bot sends the FULL document checklist + consent in one message (⭐ say out loud: "no discovered checklist — everything up front"). Reply HAAN, answer name/business + 5 questions.
+1. **Apply on WhatsApp** — send `loan` to the bot number → choose اردو → the bot sends the FULL document checklist + consent in one message (⭐ say out loud: "no discovered checklist — everything up front"). Reply HAAN, answer name/business + 10 questions (⭐ Q4 employees and Q7 existing borrowing are SBP Prudential Regulation requirements, and both feed the model directly).
 2. **Send documents** — photo of (mock) CNIC, bank statement, utility bill. Bot confirms each, shows summary → SUBMIT → reference number + "no branch visit needed."
 3. **Switch to dashboard** — the application is already in the queue (it polls every 5s) and moves on its own: `submitted → processing → scored` (pipeline auto-runs on submit). Don't touch anything, let judges watch it move.
 4. **Open the file** — one-page brief: credit score /100, risk tier, recommended limit, SHAP factor bars, rationale. Click the Documents tab (extracted fields per doc), then Audit Trail tab (⭐ "every decision reconstructable").
