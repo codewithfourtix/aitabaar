@@ -238,10 +238,15 @@ const PAGE = `<!doctype html>
     font-family:"Segoe UI",-apple-system,"Helvetica Neue",Helvetica,Roboto,sans-serif;
     background:radial-gradient(1100px 700px at 12% 8%, #12866f 0%, transparent 60%),
                linear-gradient(140deg,#054a41 0%,#075E54 42%,#0a7c63 100%);
-    color:#fff;display:flex;align-items:center;justify-content:center;padding:44px 32px;
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    padding:clamp(14px,2.4vh,40px) clamp(16px,2.2vw,32px);
   }
-  .stage{width:100%;max-width:1320px;display:grid;grid-template-columns:minmax(0,1fr) auto;
-    gap:70px;align-items:center;}
+  /* The stage is authored at one fixed "slide" size and scaled to fit the
+     viewport by fitStage() below — a 1366x768 laptop and a 1080p projector
+     then show the identical composition instead of clipping the footer.
+     CSS zoom (not transform) so text re-lays-out and stays sharp. */
+  .stage{width:100%;max-width:1320px;display:grid;grid-template-columns:minmax(0,640px) auto;
+    gap:clamp(34px,4vw,72px);align-items:center;justify-content:center;}
 
   /* ── left: the pitch ─────────────────────────────────── */
   .pitch{max-width:640px;}
@@ -291,7 +296,9 @@ const PAGE = `<!doctype html>
   .side.vu{left:-2.5px;top:158px;width:3px;height:58px;}
   .side.vd{left:-2.5px;top:226px;width:3px;height:58px;}
   .side.pw{right:-2.5px;top:190px;width:3px;height:88px;}
-  .screen{position:relative;width:384px;height:822px;max-height:calc(100vh - 150px);
+  /* Fixed design size — fitStage() scales the whole stage, so the phone keeps
+     its real aspect ratio at every viewport instead of being squashed. */
+  .screen{position:relative;width:384px;height:812px;
     border-radius:44px;overflow:hidden;display:flex;flex-direction:column;background:var(--wa-paper);}
   .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:112px;height:31px;
     background:#000;border-radius:17px;z-index:40;}
@@ -409,6 +416,7 @@ const PAGE = `<!doctype html>
   @media (max-width:560px){
     body{padding:0;align-items:stretch;}
     .stage{gap:0;}
+    .screen{width:100vw;height:100vh;}
     .pitch{display:none;}
     .phone{padding:0;border-radius:0;box-shadow:none;background:none;}
     .phone::after{display:none;}
@@ -526,6 +534,42 @@ const PAGE = `<!doctype html>
   var ICON_TICK = '${icon('checkCheck', 15)}';
   var ICON_SEND = '${icon('send', 21)}';
   var ICON_MIC = '${icon('mic', 21)}';
+
+  // ── fit-to-viewport ──────────────────────────────────────────────
+  // The two-panel composition is authored at a fixed size. On a laptop
+  // that is shorter than the design, the honesty note and the caption
+  // would fall below the fold — so scale the whole stage down until it
+  // fits, which is exactly what zooming the browser to 80% did by hand.
+  // Only in the two-column layout: once it stacks, normal scrolling is
+  // the right behaviour and shrinking would make the copy unreadable.
+  var STACK_BREAKPOINT = 1120;
+  var MIN_FIT = 0.6; // below this, let it scroll rather than go illegible
+
+  function fitStage() {
+    var stage = document.querySelector('.stage');
+    if (!stage) return;
+    stage.style.zoom = '';
+    if (window.innerWidth <= STACK_BREAKPOINT) return;
+
+    var cs = getComputedStyle(document.body);
+    var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var availH = window.innerHeight - padY;
+    var availW = window.innerWidth - padX;
+    var needH = stage.scrollHeight;
+    var needW = stage.scrollWidth;
+    if (!needH || !needW) return;
+
+    var k = Math.min(1, availH / needH, availW / needW);
+    if (k < 1) stage.style.zoom = String(Math.max(MIN_FIT, Math.floor(k * 1000) / 1000));
+  }
+
+  var fitTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitStage, 120);
+  });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitStage);
 
   var chat = document.getElementById('chat');
   var input = document.getElementById('input');
@@ -728,6 +772,8 @@ const PAGE = `<!doctype html>
   };
 
   syncSendIcon();
+  fitStage();
+  requestAnimationFrame(fitStage); // re-measure once layout has settled
 
   // Restore the thread on refresh; only greet on a genuinely new session.
   if (resuming && log.length) {
