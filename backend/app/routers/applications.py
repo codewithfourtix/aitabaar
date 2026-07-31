@@ -230,6 +230,12 @@ async def run_full_pipeline(app: Application, force_offline: bool = False) -> Ap
     return app
 
 
+@router.delete("/{app_id}", status_code=204)
+def delete_application(app_id: str):
+    _get_or_404(app_id)
+    del mock_data.APPLICATIONS[app_id]
+
+
 @router.post("/{app_id}/score", response_model=Application)
 async def score_application(app_id: str):
     """Trigger the AI engine: extract -> verify -> score -> explain."""

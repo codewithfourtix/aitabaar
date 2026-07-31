@@ -25,6 +25,18 @@ export function fetchApplication(id) {
   return request(`/applications/${id}`);
 }
 
+export async function deleteApplication(id) {
+  const response = await fetch(`${API_BASE_URL}/applications/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    let detail = `${response.status}`;
+    try {
+      const body = await response.json();
+      detail = body.detail || detail;
+    } catch { /* keep status code */ }
+    throw new Error(`API error: ${detail}`);
+  }
+}
+
 export function scoreApplication(id) {
   return request(`/applications/${id}/score`, { method: 'POST' });
 }

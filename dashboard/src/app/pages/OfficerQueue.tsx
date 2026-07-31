@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, Globe, FileText, Users, TrendingUp, Clock, Loader2, AlertTriangle } from "lucide-react";
+import { MessageCircle, Globe, FileText, Users, TrendingUp, Clock, Loader2, AlertTriangle, X } from "lucide-react";
 import { DashboardShell, GlassCard, Badge, BadgeColor, StatCard, navy, blue, success, warning, danger, indigo } from "../shared";
-import { fetchApplications } from "../../services/api";
+import { fetchApplications, deleteApplication } from "../../services/api";
 
 type FilterTab = "All" | "Submitted" | "Scored" | "Needs Docs" | "Decided";
 
@@ -63,6 +63,18 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
   const [rawApps, setRawApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async (e: React.MouseEvent, appId: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete application ${appId}? This cannot be undone.`)) return;
+    try {
+      await deleteApplication(appId);
+      setAllApps((prev) => prev.filter((a) => a.id !== appId));
+      setRawApps((prev) => prev.filter((a) => a.id !== appId));
+    } catch (err: any) {
+      alert(`Failed to delete: ${err.message}`);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -253,13 +265,23 @@ export default function OfficerQueue({ onNav }: { onNav: (p: string, params?: an
                   <Badge label={app.status} color={app.statusColor} />
                 </td>
                 <td className="px-5 py-4 text-right">
-                  <button
-                    onClick={() => onNav("detail", { appId: app.id })}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-blue-50 cursor-pointer"
-                    style={{ color: blue }}
-                  >
-                    View More →
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => onNav("detail", { appId: app.id })}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-blue-50 cursor-pointer"
+                      style={{ color: blue }}
+                    >
+                      View More →
+                    </button>
+                    <button
+                      onClick={(e) => handleDelete(e, app.id)}
+                      title="Delete application"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-red-50 cursor-pointer"
+                      style={{ color: danger }}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
