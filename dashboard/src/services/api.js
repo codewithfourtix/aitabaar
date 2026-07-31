@@ -17,6 +17,10 @@ export function fetchApplications() {
   return request('/applications');
 }
 
+export function fetchMisSummary() {
+  return request('/applications/mis-summary');
+}
+
 export function fetchApplication(id) {
   return request(`/applications/${id}`);
 }
