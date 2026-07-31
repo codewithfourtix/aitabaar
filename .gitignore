@@ -31,7 +31,7 @@ models/*.json
 !backend/models/aitbaar_xgb.json
 !backend/models/features.json
 data/raw/
-data/uploads/
+**/data/uploads/
 
 # OS / editor
 .DS_Store
