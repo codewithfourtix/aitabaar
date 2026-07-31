@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { MessageCircle, Users, FileText, CheckCircle2, Clock, Loader2, AlertTriangle, Info } from "lucide-react";
 import { DashboardShell, GlassCard, Badge, BadgeColor, StatCard, navy, blue, success, warning, danger } from "../shared";
-import { fetchApplications } from "../../services/api";
+import { fetchApplications, fetchMisSummary } from "../../services/api";
 
 // The traditional-process baseline this estimate is anchored to — see the
 // project README's problem statement ("3 to 5 branch trips per application
@@ -36,6 +36,8 @@ const getStatusColor = (status: string): BadgeColor => {
 
 export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any) => void }) {
   const [apps, setApps] = useState<any[]>([]);
+  const [misSummary, setMisSummary] = useState<any>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,9 +45,23 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
     try {
       const data = await fetchApplications();
       setApps(data);
+      setUsingFallback(false);
       setError(null);
     } catch (err: any) {
-      setError(err.message);
+      // Per-application detail unavailable (e.g. a slow/flaky backend) -
+      // fall back to the pre-aggregated portfolio summary (R-19 ii) so the
+      // tab still shows real totals instead of just an error banner. Coarser
+      // (no per-applicant list, no WhatsApp-specific tier breakdown - the
+      // summary endpoint's by_risk_tier/by_segment are portfolio-wide, not
+      // filtered by channel), but honestly labeled as such below.
+      try {
+        const summary = await fetchMisSummary();
+        setMisSummary(summary);
+        setUsingFallback(true);
+        setError(null);
+      } catch {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +93,16 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 8);
 
+  // Fallback-mode derived values (from GET /applications/mis-summary,
+  // portfolio-wide rather than WhatsApp-specific - see loadData above).
+  const fbTotal = misSummary?.total_applications ?? 0;
+  const fbWaCount = misSummary?.by_channel?.whatsapp ?? 0;
+  const fbByStatus = misSummary?.by_status ?? {};
+  const fbReviewed = (fbByStatus.scored ?? 0) + (fbByStatus.needs_docs ?? 0);
+  const fbDecided = (fbByStatus.approved ?? 0) + (fbByStatus.rejected ?? 0);
+  const fbByTier = misSummary?.by_risk_tier ?? {};
+  const fbTierTotal = Object.values(fbByTier).reduce((s: number, n: any) => s + n, 0) as number;
+
   return (
     <DashboardShell onNav={onNav} active="whatsapp">
       <div className="flex items-start justify-between mb-6">
@@ -107,6 +133,73 @@ export default function WhatsAppBot({ onNav }: { onNav: (p: string, params?: any
         <div className="py-16 flex justify-center items-center">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: blue }} />
         </div>
+      ) : usingFallback ? (
+        <>
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl border mb-5" style={{ background: "#FFFBEB", borderColor: "rgba(201,162,39,0.3)" }}>
+            <Info size={16} color={warning} className="shrink-0 mt-0.5" />
+            <p className="text-sm" style={{ color: "#92400E" }}>
+              Per-application detail is unavailable right now, so this is falling back to portfolio-wide totals
+              (GET /applications/mis-summary) rather than WhatsApp-specific numbers — the tier breakdown and
+              recent-applications list below need the full record list to filter by channel.
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <StatCard
+              icon={<FileText size={20} color="#25D366" />}
+              label="WhatsApp Applications"
+              value={fbWaCount.toString()}
+              sub={`of ${fbTotal} total, all channels`}
+              iconBg="#F0FFF4"
+              accent="#25D366"
+            />
+            <StatCard
+              icon={<Clock size={20} color={warning} />}
+              label="In review"
+              value={fbReviewed.toString()}
+              sub="portfolio-wide, scored or needs docs"
+              iconBg="#FFFBEB"
+              accent={warning}
+            />
+            <StatCard
+              icon={<CheckCircle2 size={20} color={success} />}
+              label="Solved"
+              value={fbDecided.toString()}
+              sub="portfolio-wide, approved or rejected"
+              iconBg="#ECFDF5"
+              accent={success}
+            />
+            <StatCard
+              icon={<Users size={20} color={blue} />}
+              label="Est. branch visits avoided"
+              value={`${fbWaCount * BRANCH_VISITS_AVOIDED_LOW}–${fbWaCount * BRANCH_VISITS_AVOIDED_HIGH}`}
+              sub="estimate, see note below"
+              iconBg="#EFF6FF"
+              accent={blue}
+            />
+          </div>
+          {fbTierTotal > 0 && (
+            <GlassCard className="p-5">
+              <h3 className="font-semibold text-base mb-1" style={{ color: navy }}>Risk tier distribution</h3>
+              <p className="text-xs mb-4" style={{ color: "#94A3B8" }}>Portfolio-wide (all channels) — not WhatsApp-specific in fallback mode.</p>
+              {(["A", "B", "C", "D"] as const).map((tier) => {
+                const count = fbByTier[tier] ?? 0;
+                const pct = fbTierTotal > 0 ? Math.round((count / fbTierTotal) * 100) : 0;
+                const color = tier === "A" ? success : tier === "B" ? blue : tier === "C" ? warning : danger;
+                return (
+                  <div key={tier} className="mb-3 last:mb-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium" style={{ color: "#374151" }}>Tier {tier}</span>
+                      <span className="text-xs font-semibold" style={{ color: "#374151" }}>{count} ({pct}%)</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full" style={{ background: "#F1F5F9" }}>
+                      <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </GlassCard>
+          )}
+        </>
       ) : (
         <>
           <div className="grid grid-cols-4 gap-4 mb-6">
