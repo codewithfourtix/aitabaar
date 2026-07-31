@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app import mock_data, storage
-from app.engine import extraction, policy, rationale, scoring, verification
+from app.engine import disclosure, ecib, extraction, policy, rationale, scoring, verification
 from app.models.schemas import (
     Application,
     ApplicationCreate,
@@ -20,6 +20,7 @@ from app.models.schemas import (
     DecisionRequest,
     Document,
     DocumentType,
+    ECIBStatus,
 )
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -45,6 +46,32 @@ def list_applications(status: ApplicationStatus | None = None, phone: str | None
     if phone is not None:
         apps = [a for a in apps if a.applicant.phone == phone]
     return sorted(apps, key=lambda a: a.created_at, reverse=True)
+
+
+@router.get("/mis-summary")
+def mis_summary():
+    """Regulation R-19 ii: portfolio Management Information System —
+    counts by status/tier/segment/channel over the current portfolio, so
+    management has "full and timely visibility of the portfolio size,
+    growth trends... quality etc." Registered before /{app_id} so
+    "mis-summary" is never swallowed as an app_id path param."""
+    apps = list(mock_data.APPLICATIONS.values())
+
+    def _tally(key_fn) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for a in apps:
+            key = key_fn(a)
+            if key is not None:
+                counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    return {
+        "total_applications": len(apps),
+        "by_status": _tally(lambda a: a.status.value),
+        "by_channel": _tally(lambda a: a.channel.value),
+        "by_risk_tier": _tally(lambda a: a.score.risk_tier if a.score else None),
+        "by_segment": _tally(lambda a: a.score.segment.value if a.score else None),
+    }
 
 
 @router.get("/{app_id}", response_model=Application)
@@ -151,6 +178,14 @@ async def run_full_pipeline(app: Application, force_offline: bool = False) -> Ap
             AuditEvent(at=_now(), actor="engine", action="verified", detail=f"{len(flags)} flag(s)")
         )
 
+        ecib_check = ecib.check(app)
+        app.ecib_check = ecib_check
+        if ecib_check.status == ECIBStatus.overdue:
+            flags.append(f"[HIGH] ECIB_OVERDUE: {ecib_check.note}")
+        app.audit_trail.append(
+            AuditEvent(at=_now(), actor="engine", action="ecib_checked", detail=ecib_check.status.value)
+        )
+
         result = scoring.score(app)
         result.inconsistency_flags = flags
         app.audit_trail.append(
@@ -181,6 +216,8 @@ async def run_full_pipeline(app: Application, force_offline: bool = False) -> Ap
 
         result.rationale = await rationale.build_brief(app, result, offline=force_offline)
         app.audit_trail.append(AuditEvent(at=_now(), actor="engine", action="explained"))
+
+        result.disclosure = disclosure.build(app, result)
 
         app.score = result
         app.status = ApplicationStatus.scored

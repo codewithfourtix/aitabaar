@@ -23,7 +23,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from models.train import BUSINESS_TYPES, FEATURE_COLUMNS, build_features  # noqa: E402
+from models.train import BUSINESS_TYPES, FEATURE_COLUMNS, build_features, tier_for  # noqa: E402
 
 _MODEL_PATH = _BACKEND_ROOT / "models" / "aitbaar_xgb.json"
 _FEATURES_PATH = _BACKEND_ROOT / "models" / "features.json"
@@ -31,6 +31,24 @@ _FEATURES_PATH = _BACKEND_ROOT / "models" / "features.json"
 with open(_FEATURES_PATH, encoding="utf-8") as f:
     _FEATURES_META = json.load(f)
 MEDIANS: dict = _FEATURES_META["medians"]
+# Single source of truth is models/features.json (written by
+# models/train.py's validate_tier_cutoffs()) — never re-declared here, same
+# rule as FEATURE_COLUMNS/MEDIANS above.
+TIER_CUTOFFS: dict = _FEATURES_META["tier_cutoffs"]
+
+# SBP Prudential Regulations for SME Financing (updated 16 Jul 2026),
+# Part-I: enterprise size bands by annual sales turnover.
+_SEGMENT_BANDS = [
+    ("micro", 30_000_000),
+    ("small", 400_000_000),
+    ("medium", 2_000_000_000),
+]
+# R-9: clean (unsecured, cash-flow-based) facility cap, any segment.
+CLEAN_FACILITY_CAP_PKR = 50_000_000
+# R-5: per-party exposure limit — Micro/Small vs. Medium.
+_PER_PARTY_CAP_PKR = {"micro": 100_000_000, "small": 100_000_000, "medium": 500_000_000}
+# Part-I: a Micro/Small/Medium enterprise <=5 years old is a "Start-up".
+_STARTUP_MAX_YEARS = 5
 
 MODEL = xgb.XGBClassifier()
 MODEL.load_model(str(_MODEL_PATH))
@@ -156,22 +174,41 @@ def _build_input_row(application: Application) -> tuple[dict, float, list[str]]:
     return row, data_completeness, defaulted
 
 
-def _tier_for(p_repay: float) -> str:
-    if p_repay >= 0.80:
-        return "A"
-    if p_repay >= 0.65:
-        return "B"
-    if p_repay >= 0.50:
-        return "C"
-    return "D"
+def _segment_for(annual_turnover_pkr: float) -> str:
+    """SBP Prudential Regulations for SME Financing (16 Jul 2026), Part-I:
+    enterprise size band by annual sales turnover. monthly_revenue_pkr is
+    the closest proxy the intake flow has to annual turnover, so it's
+    annualized (x12) here rather than collecting a separate figure."""
+    for segment, ceiling in _SEGMENT_BANDS:
+        if annual_turnover_pkr <= ceiling:
+            return segment
+    return "medium"
 
 
-def _recommended_amount(monthly_revenue_pkr: float, risk_tier: str, requested_amount_pkr: int) -> int:
-    """Documented rule: cap at a tier-scaled multiple of monthly revenue,
-    never above what was actually requested. When a banker asks where the
-    number comes from, this function is the answer."""
-    ceiling = monthly_revenue_pkr * _TIER_MULTIPLIER[risk_tier]
-    return int(min(requested_amount_pkr, ceiling))
+def _is_startup(years_in_business: float) -> bool:
+    """Part-I: a Micro/Small/Medium enterprise <=5 years old is a Start-up."""
+    return years_in_business <= _STARTUP_MAX_YEARS
+
+
+def _recommended_amount(
+    monthly_revenue_pkr: float, risk_tier: str, requested_amount_pkr: int, segment: str
+) -> tuple[int, dict[str, int], str]:
+    """Four-gate cascade, tightest wins — MIN() of affordability, the
+    R-9 clean-facility cap, the R-5 per-party exposure limit (by segment),
+    and what the applicant actually asked for. The first three gates are
+    regulatory ceilings that can never be breached regardless of tier;
+    only the affordability gate reflects the model's own risk view.
+    Returns (amount, trace of every gate's value, name of the binding gate)
+    so the officer dashboard can show exactly why this number, not a black
+    box — see docs/compliance-sbp.md."""
+    trace = {
+        "affordability": int(monthly_revenue_pkr * _TIER_MULTIPLIER[risk_tier]),
+        "clean_facility_cap_r9": CLEAN_FACILITY_CAP_PKR,
+        "per_party_cap_r5": _PER_PARTY_CAP_PKR[segment],
+        "requested": requested_amount_pkr,
+    }
+    binding_gate = min(trace, key=lambda gate: trace[gate])
+    return trace[binding_gate], trace, binding_gate
 
 
 def score(application: Application) -> ScoreResult:
@@ -193,8 +230,12 @@ def score(application: Application) -> ScoreResult:
         for name, value in contributions[:5]
     ]
 
-    risk_tier = _tier_for(p_repay)
-    recommended_amount_pkr = _recommended_amount(row["monthly_revenue_pkr"], risk_tier, application.requested_amount_pkr)
+    risk_tier = tier_for(p_repay, TIER_CUTOFFS)
+    segment = _segment_for(row["monthly_revenue_pkr"] * 12)
+    is_startup = _is_startup(row["years_in_business"])
+    recommended_amount_pkr, amount_cap_trace, binding_gate = _recommended_amount(
+        row["monthly_revenue_pkr"], risk_tier, application.requested_amount_pkr, segment
+    )
 
     return ScoreResult(
         repayment_probability=p_repay,
@@ -206,4 +247,8 @@ def score(application: Application) -> ScoreResult:
         data_completeness=round(data_completeness, 3),
         defaulted_fields=defaulted_fields,
         completeness_band=_completeness_band(data_completeness),
+        segment=segment,
+        is_startup=is_startup,
+        amount_cap_trace=amount_cap_trace,
+        binding_amount_gate=binding_gate,
     )

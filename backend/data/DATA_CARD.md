@@ -8,7 +8,7 @@ No real customer data is used anywhere in this project (see `docs/decisions.md`)
 
 ## Provenance of priors
 
-Feature distributions and the base default rate are anchored to published Pakistani figures: SME NPL ~4.9% (Dec 2024, SMEDA/SBP) against a recent high of ~38% (May 2023); SBP SME definition (Small ≤ PKR 150M turnover, Medium PKR 150–800M) and the PKR 10M clean-lending limit; sector and firm-size mix from the Economic Census / SBP SME reviews (~45% of establishments in retail & wholesale trade; ~99% employ 1–10). The base "bad" rate (~20%) is a modeling assumption bounded by the 4.9%–38% range and set higher than the portfolio average to reflect a thin-file applicant pool. Items marked ASSUMPTION in the anchoring sheet (years in business, premises ownership, account age) have no published source and are defensible defaults, not observed values. No real applicant, bureau, or repayment data is used anywhere.
+Feature distributions and the base default rate are anchored to published Pakistani figures: SME NPL ~4.9% (Dec 2024, SMEDA/SBP) against a recent high of ~38% (May 2023); SBP SME definition (Micro ≤ PKR 30M, Small PKR 30–400M, Medium PKR 400–2,000M annual turnover) and the PKR 50M clean-lending limit; sector and firm-size mix from the Economic Census / SBP SME reviews (~45% of establishments in retail & wholesale trade; ~99% employ 1–10). The base "bad" rate (~20%) is a modeling assumption bounded by the 4.9%–38% range and set higher than the portfolio average to reflect a thin-file applicant pool. Items marked ASSUMPTION in the anchoring sheet (years in business, premises ownership, account age) have no published source and are defensible defaults, not observed values. No real applicant, bureau, or repayment data is used anywhere.
 
 Full source list (see `data/generate.py`'s per-block `[SOURCED]`/`[ASSUMPTION]` comments for exactly which figure anchors which parameter):
 
@@ -16,14 +16,30 @@ Full source list (see `data/generate.py`'s per-block `[SOURCED]`/`[ASSUMPTION]` 
 |---|---|---|---|
 | SME NPL / infection ratio | ~4.9% (down from ~38% in May 2023) | SMEDA, *SME Financing Portfolio in Pakistan* (Sep 2024), citing SBP | Dec 2024 |
 | Overall banking-sector NPL | 6.3% | SBP, *Financial Stability Review 2024* | Dec 2024 |
-| Small Enterprise definition | Annual sales turnover ≤ PKR 150M | SBP Prudential Regulations for SME Financing | 2024–25 |
-| Medium Enterprise definition | AST > PKR 150M and ≤ PKR 800M | SBP Prudential Regulations for SME Financing | 2024–25 |
-| Clean (cash-flow, unsecured) lending limit | PKR 10M per SME borrower | SBP amendment to SME R-4 | Aug 2024 |
+| Micro Enterprise definition | Annual sales turnover ≤ PKR 30M | SBP, *Prudential Regulations for SME Financing*, Part-I | 16 Jul 2026 |
+| Small Enterprise definition | AST > PKR 30M and ≤ PKR 400M | SBP, *Prudential Regulations for SME Financing*, Part-I | 16 Jul 2026 |
+| Medium Enterprise definition | AST > PKR 400M and ≤ PKR 2,000M | SBP, *Prudential Regulations for SME Financing*, Part-I | 16 Jul 2026 |
+| Start-up definition | MSME ≤ 5 years old | SBP, *Prudential Regulations for SME Financing*, Part-I | 16 Jul 2026 |
+| Clean (cash-flow, unsecured) lending limit | PKR 50M per SME borrower | SBP, *Prudential Regulations for SME Financing*, Regulation R-9 | 16 Jul 2026 |
+| Per-party exposure limit | PKR 100M (Micro/Small), PKR 500M (Medium) | SBP, *Prudential Regulations for SME Financing*, Regulation R-5 | 16 Jul 2026 |
+| NPL classification thresholds | 90d Substandard / 180d Doubtful / 365d Loss | SBP, *Prudential Regulations for SME Financing*, Regulation R-17, Annexure I | 16 Jul 2026 |
 | Establishments in retail & wholesale trade | ~45% of all establishments | KSBL policy brief / Economic Census | 2025 |
 | Establishments employing 1–10 persons | 99.06% | SBP SME Financial Review | (structural) |
 | Share of SMEs that borrow formally | ~6.5% | SBP; Karandaaz | 2021–24 |
 
-**Not adopted:** a more recent revision (Micro ≤ PKR 30M; Small > PKR 30M–400M) was flagged in the anchoring sheet as unconfirmed against the latest SBP circular at the time of writing. Per the sheet's own instruction, this dataset uses the established Small ≤150M / Medium 150–800M bands instead. If that revision is later confirmed, the `monthly_revenue_pkr` and `requested_amount_pkr` bounds in `generate.py` should be revisited.
+**Resolved (was "Not adopted"):** an earlier draft of this card flagged the Micro ≤ PKR 30M / Small PKR 30–400M band revision as unconfirmed and used the older Small ≤150M / Medium 150–800M bands (and a PKR 10M clean cap) instead. SBP's *Prudential Regulations for SME Financing* (updated 16 Jul 2026) confirms those exact bands plus the PKR 50M clean-facility cap (R-9) and PKR 100M/500M per-party exposure limits (R-5). `generate.py`'s `monthly_revenue_pkr` and `requested_amount_pkr` bounds, and `app/engine/scoring.py`'s segment/amount-cap logic, are now anchored to this confirmed source — see `docs/compliance-sbp.md` for the full regulation → component map.
+
+## Target definition (Regulation R-17)
+
+`repaid` (1 = repaid, 0 = defaulted) is already a binary outcome label, not a
+time-series of days-past-due — there's no DPD trajectory to reframe. The
+regulatory tie-in is definitional: `repaid=0` is defined as *the loan
+reaching 90+ days overdue (Substandard classification, per Annexure I of
+the SBP SME Prudential Regulations)* within the observation window, i.e.
+the model's `1 - repayment_probability` output is P(reach Substandard),
+the same event a bank must provision capital against under R-17. This
+matches the regulatory NPL trigger without any change to the label
+mechanics in `generate.py`.
 
 **business_type mapping caveat:** the sourced establishment mix has 5 categories (Retail & Wholesale, Services, Manufacturing, Agriculture, Other) that don't line up 1:1 with this generator's 5 categories (`retail_wholesale`, `food`, `textiles`, `services`, `light_manufacturing`). `retail_wholesale` maps directly (45%=45%); the rest is an interpretive split, not a direct citation — see the `BUSINESS_TYPE_P` comment in `generate.py` for the exact reasoning.
 
@@ -50,7 +66,7 @@ Genuine noise is added so the trained model's AUC lands in the 0.78–0.85 band 
 | `business_type` | retail_wholesale (45%), food (8%), textiles (12%), services (27%), light_manufacturing (8%) — see provenance section above |
 | `years_in_business` | 1–25, right-skewed (gamma), median ~6 — ASSUMPTION |
 | `registered` | bool, ~40% true — ASSUMPTION, bounded |
-| `monthly_revenue_pkr` | lognormal, median ~650k, 100k–60m (thin tail into medium-enterprise territory) |
+| `monthly_revenue_pkr` | lognormal, median ~650k, 100k–150m (thin tail into medium-enterprise territory) |
 | `employees` | 1–50, ~99% in 1–10, rare tail to ~40–50 for medium-scale-revenue rows |
 | `premises_owned` | bool, ~37% true — ASSUMPTION |
 | `years_at_premises` | 0–20, capped at `years_in_business` — ASSUMPTION |
@@ -60,7 +76,7 @@ Genuine noise is added so the trained model's AUC lands in the 0.78–0.85 band 
 | `account_age_months` | 6 months – `years_in_business`×12 (capped, correlated) — ASSUMPTION |
 | `has_existing_loan` | bool, ~25% true |
 | `existing_installment_pkr` | 0 if no loan, else 5–25% of `monthly_revenue_pkr` |
-| `requested_amount_pkr` | lognormal, median ~2m, 500k–10m (capped at the SBP clean-lending limit) |
+| `requested_amount_pkr` | lognormal, median ~2m, 500k–50m (capped at the SBP clean-lending limit, R-9) |
 
 ## Fields the real intake flow doesn't collect (yet)
 

@@ -44,5 +44,11 @@
     "requested_amount_pkr": 2108000.0,
     "debt_burden_ratio": 0.0,
     "turnover_to_loan_ratio": 2.3750775927206886
-  }
+  },
+  "tier_cutoffs": {
+    "A": 0.8,
+    "B": 0.65,
+    "C": 0.5
+  },
+  "scale_pos_weight": 0.4
 }
