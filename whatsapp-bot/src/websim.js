@@ -16,7 +16,7 @@ const express = require('express');
 const { handleMessage } = require('./flow');
 
 const app = express();
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 const PORT = process.env.PORT || 8002;
 
@@ -66,14 +66,21 @@ app.post('/api/message', async (req, res) => {
 
 app.post('/api/upload', async (req, res) => {
   try {
-    const { phone } = req.body;
-    const n = uploadCount.get(phone) || 0;
-    const b64 = DOC_B64[n] || DOC_B64[n % DOC_B64.length] || TINY_JPEG;
-    const name = (DOC_SEQUENCE[n] || DOC_SEQUENCE[0]).name;
-    uploadCount.set(phone, n + 1);
-    const media = { data: b64 || TINY_JPEG, mimetype: 'image/png', filename: name };
+    const { phone, data, mimetype, filename } = req.body;
+    let media;
+    if (data) {
+      // Real file uploaded from the browser (base64)
+      media = { data, mimetype: mimetype || 'image/jpeg', filename: filename || 'document.jpg' };
+    } else {
+      // No file attached — fall back to the next specimen document
+      const n = uploadCount.get(phone) || 0;
+      const b64 = DOC_B64[n] || DOC_B64[n % DOC_B64.length] || TINY_JPEG;
+      const name = (DOC_SEQUENCE[n] || DOC_SEQUENCE[0]).name;
+      uploadCount.set(phone, n + 1);
+      media = { data: b64 || TINY_JPEG, mimetype: 'image/png', filename: name };
+    }
     const reply = await handleMessage(makeMsg(phone, '', media));
-    res.json({ reply, doc: name });
+    res.json({ reply, doc: media.filename });
   } catch (err) {
     console.error('sim upload error:', err.message);
     res.status(500).json({ reply: '⚠️ Backend error — is BACKEND_API_URL reachable?' });
@@ -146,8 +153,9 @@ const PAGE = `<!doctype html>
     <span class="ic">😊</span>
     <div class="field">
       <input id="input" placeholder="Message" autocomplete="off">
-      <span class="ic" id="attach" title="Send a document" style="cursor:pointer">📎</span>
-      <span class="ic">📷</span>
+      <span class="ic" id="attach" title="Upload a document from this device" style="cursor:pointer">📎</span>
+      <span class="ic" id="specimen" title="Send the next specimen document" style="cursor:pointer">📷</span>
+      <input type="file" id="file" accept="image/*,application/pdf" style="display:none">
     </div>
     <button class="go" id="go">➤</button>
   </div>
@@ -194,7 +202,17 @@ const PAGE = `<!doctype html>
   input.addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
   const DOCS=['CNIC (front)','Bank Statement 6M','Electricity Bill'];
   let dc=0;
-  document.getElementById('attach').onclick=async()=>{
+  const fileInput=document.getElementById('file');
+  document.getElementById('attach').onclick=()=>fileInput.click();
+  fileInput.onchange=async()=>{
+    const f=fileInput.files[0]; fileInput.value=''; if(!f)return;
+    if(f.size>20*1024*1024){ add('⚠️ File too large (max 20 MB)','bot'); return; }
+    const b64=await new Promise((res,rej)=>{const r=new FileReader();
+      r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f);});
+    add('','me',f.name);
+    await call('/api/upload',{phone,data:b64,mimetype:f.type||'image/jpeg',filename:f.name});
+  };
+  document.getElementById('specimen').onclick=async()=>{
     add('','me',DOCS[dc]||'Document'); dc++; await call('/api/upload',{phone});
   };
   setTimeout(()=>call('/api/message',{phone,text:'loan'}),400);
