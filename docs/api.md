@@ -71,7 +71,7 @@ Create a draft. Body (`ApplicationCreate`):
 
 ## 5. `POST /applications/{id}/documents`
 
-`multipart/form-data`: field `type` ∈ `cnic | bank_statement | utility_bill | business_questionnaire | business_registration | property_document`, field `file` = the upload (jpg/png/pdf).
+`multipart/form-data`: field `type` ∈ `cnic | bank_statement | utility_bill | business_questionnaire | business_registration | property_document | other`, field `file` = the upload (jpg/png/pdf).
 
 Document tiers, as the applicant flow collects them (`docs/whatsapp-bot-flow.md`):
 
@@ -83,6 +83,7 @@ Document tiers, as the applicant flow collects them (`docs/whatsapp-bot-flow.md`
 | `business_questionnaire` | required | JSON, uploaded once the 10 questions are answered |
 | `business_registration` | optional | offered after the 3 required docs; applicant may reply `SKIP` |
 | `property_document` | conditional | only requested when `requested_amount_pkr >= 5000000` (SBP R-8 clean-facility limit) |
+| `other` | officer-initiated only | not part of the applicant flow's own checklist — used when an officer requests something outside the named types via `POST /applications/{id}/decision` (`action=request_docs`); the actual document name/reason travels in that request's `note`, not in `type` |
 
 → `201` the created `Document`:
 

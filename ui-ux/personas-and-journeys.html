@@ -1,0 +1,638 @@
+<title>Aitbaar — User Personas &amp; Journey Maps</title>
+<style>
+  :root{
+    --navy:#0A2D6E;
+    --navy-ink:#081f4d;
+    --blue:#1E88E5;
+    --gold:#C9A227;
+    --grey:#F5F7FA;
+    --white:#FFFFFF;
+    --ink:#1a2233;
+    --muted:#5b6472;
+    --border:#e1e5eb;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:#d9dde3;}
+  body{
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  @page{ size:A4; margin:0; }
+
+  .page{
+    width:210mm;
+    min-height:297mm;
+    background:var(--white);
+    padding:14mm 16mm 12mm;
+    margin:0 auto;
+    position:relative;
+    page-break-after:always;
+    display:flex;
+    flex-direction:column;
+  }
+  .page:last-child{page-break-after:auto;}
+
+  /* ---------- shared bits ---------- */
+  .eyebrow{
+    font-size:9.5px;
+    letter-spacing:1.6px;
+    text-transform:uppercase;
+    color:var(--gold);
+    font-weight:700;
+  }
+  h2.section{
+    font-size:13px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    color:var(--navy);
+    font-weight:700;
+    margin:0 0 8px;
+    padding-bottom:5px;
+    border-bottom:2.5px solid var(--gold);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .icon{width:14px;height:14px;flex:none;}
+  .foot{
+    margin-top:auto;
+    padding-top:8px;
+    border-top:1px solid var(--border);
+    display:flex;
+    justify-content:space-between;
+    font-size:8.5px;
+    color:var(--muted);
+  }
+  ul.bullets{list-style:none;display:flex;flex-direction:column;gap:4px;}
+  ul.bullets li{
+    font-size:10.3px;
+    line-height:1.4;
+    padding-left:14px;
+    position:relative;
+    color:var(--ink);
+  }
+  ul.bullets li::before{
+    content:"";
+    position:absolute;
+    left:0; top:5px;
+    width:5px; height:5px;
+    border-radius:50%;
+    background:var(--blue);
+  }
+  ul.bullets.warn li::before{background:#c0472c;}
+  ul.bullets.help li::before{display:none;}
+  ul.bullets.help li{padding-left:18px;}
+
+  /* ============ PAGE 1 : COVER + FRAMING + PERSONA 1 ============ */
+  .cover-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:3px solid var(--navy);
+    padding-bottom:12px;
+    margin-bottom:10px;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand .name{font-size:30px;font-weight:800;color:var(--navy);letter-spacing:0.3px;}
+  .brand .ur{font-size:19px;color:var(--gold);font-weight:700;}
+  .cover-header .meta{text-align:right;font-size:9.5px;color:var(--muted);line-height:1.6;}
+  .cover-header .meta b{color:var(--navy);}
+
+  .doc-title{margin:10px 0 4px;}
+  .doc-title h1{font-size:19px;color:var(--ink);font-weight:800;}
+  .doc-title p{font-size:10.5px;color:var(--muted);margin-top:3px;}
+
+  .framing{
+    background:var(--grey);
+    border-left:4px solid var(--blue);
+    border-radius:4px;
+    padding:10px 14px;
+    font-size:10.8px;
+    line-height:1.55;
+    color:var(--ink);
+    margin:10px 0 16px;
+  }
+  .framing b{color:var(--navy);}
+
+  /* persona card */
+  .persona-card{
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .persona-head{
+    background:var(--navy);
+    color:var(--white);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 16px;
+  }
+  .avatar{
+    width:46px;height:46px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:15px;flex:none;
+    border:2px solid rgba(255,255,255,0.55);
+  }
+  .avatar.gold{background:var(--gold);color:var(--navy-ink);}
+  .avatar.blue{background:var(--blue);color:var(--white);}
+  .persona-head .who .role-tag{
+    display:inline-block;font-size:8.5px;letter-spacing:1px;text-transform:uppercase;
+    background:rgba(255,255,255,0.16);padding:2px 7px;border-radius:10px;margin-bottom:3px;
+  }
+  .persona-head .who .pname{font-size:15px;font-weight:800;}
+  .persona-head .who .psub{font-size:10px;opacity:0.85;margin-top:1px;}
+
+  .chip-strip{
+    display:flex;flex-wrap:wrap;gap:6px;
+    padding:9px 16px;background:var(--grey);border-bottom:1px solid var(--border);
+  }
+  .chip{
+    display:flex;align-items:center;gap:4px;
+    background:var(--white);border:1px solid var(--border);
+    border-radius:12px;padding:3px 9px;font-size:9px;color:var(--ink);
+  }
+  .chip .icon{width:11px;height:11px;color:var(--blue);}
+
+  .persona-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:11px;}
+  .snapshot{font-size:10.3px;line-height:1.5;color:var(--ink);}
+  .snapshot .lbl{font-weight:700;color:var(--navy);}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  .quote-block{
+    background:#fbf6e8;border-left:4px solid var(--gold);
+    border-radius:4px;padding:9px 12px;
+    font-size:10px;font-style:italic;color:#5a4a12;line-height:1.5;
+    display:flex;gap:8px;align-items:flex-start;
+  }
+  .quote-block .icon{color:var(--gold);width:16px;height:16px;margin-top:1px;}
+
+  .help-box{
+    background:#eaf3fd;border:1px solid #cfe4fb;border-radius:6px;padding:10px 12px;
+  }
+  .help-box .htitle{
+    font-size:9.5px;font-weight:800;color:var(--navy);letter-spacing:0.4px;
+    text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:5px;
+  }
+  .help-box .icon{color:var(--blue);}
+  .help-box ul.bullets.help li{font-size:10px;}
+  .help-box ul.bullets.help li .icon{
+    position:absolute;left:0;top:2px;width:12px;height:12px;color:#1a8f4c;
+  }
+  .help-box ul.bullets.help li{position:relative;}
+
+  .lbl-row{display:flex;align-items:center;gap:5px;font-size:9.5px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px;}
+  .lbl-row .icon{color:var(--navy);}
+  .lbl-row.warn{color:#a5401f;}
+  .lbl-row.warn .icon{color:#a5401f;}
+
+  /* ============ PAGE 2: PERSONA 2 + PERSONA 3 ============ */
+  .compact-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .compact-card .persona-head{background:var(--gold);color:var(--navy-ink);}
+  .compact-card .persona-body{padding:10px 16px 12px;}
+  .cares-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .care-chip{
+    background:var(--navy);color:var(--white);font-size:8.8px;font-weight:600;
+    padding:3px 9px;border-radius:10px;
+  }
+  .compact-two{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;}
+
+  /* ============ JOURNEY MAP PAGES ============ */
+  .journey-title{margin-bottom:10px;}
+  .journey-title h1{font-size:16px;color:var(--navy);font-weight:800;}
+  .journey-title p{font-size:10px;color:var(--muted);margin-top:2px;}
+
+  .emotion-chart{border:1px solid var(--border);border-radius:6px;padding:8px 10px 4px;margin-bottom:8px;background:var(--grey);}
+  .emotion-chart .legend{display:flex;gap:16px;font-size:8.8px;color:var(--muted);margin-top:2px;padding-left:2px;}
+  .legend .sw{display:inline-block;width:16px;height:0;border-top:2.5px solid;vertical-align:middle;margin-right:4px;}
+  .legend .sw.today{border-top-style:dashed;border-color:#b0453088;}
+  .legend .sw.aitbaar{border-color:var(--blue);}
+  .legend .star-lbl{color:var(--gold);font-weight:700;}
+
+  .jgrid{
+    display:grid;
+    border:1px solid var(--border);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .jgrid .rowlabel{
+    background:var(--grey);
+    font-size:8.6px;font-weight:800;color:var(--navy);
+    text-transform:uppercase;letter-spacing:0.3px;
+    padding:7px 8px;
+    display:flex;align-items:center;
+    border-right:1px solid var(--border);
+    border-bottom:1px solid var(--border);
+  }
+  .jgrid .stagehead{
+    background:var(--navy);color:var(--white);
+    padding:7px 8px;font-size:9.3px;font-weight:700;line-height:1.25;
+    border-bottom:1px solid var(--border);
+    border-right:1px solid rgba(255,255,255,0.15);
+    position:relative;
+  }
+  .jgrid .stagehead .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:14px;height:14px;border-radius:50%;background:var(--gold);color:var(--navy-ink);
+    font-size:8px;font-weight:800;margin-right:4px;
+  }
+  .jgrid .stagehead.mot{background:var(--navy-ink);}
+  .jgrid .stagehead .mot-badge{
+    display:inline-flex;align-items:center;gap:3px;
+    font-size:7.3px;font-weight:800;color:var(--gold);
+    text-transform:uppercase;letter-spacing:0.4px;margin-top:2px;
+  }
+  .jgrid .mot-badge .icon{width:8px;height:8px;color:var(--gold);}
+
+  .jgrid .cell{
+    padding:7px 8px;font-size:9px;line-height:1.35;color:var(--ink);
+    border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  }
+  .jgrid .cell.emo-today{color:#a5401f;font-style:italic;}
+  .jgrid .cell.emo-aitbaar{color:#146b3a;font-style:italic;font-weight:600;}
+  .jgrid > div:nth-last-child(-n+6){border-bottom:none;}
+
+  .before-after{
+    margin-top:8px;display:flex;gap:8px;
+  }
+  .ba-item{
+    flex:1;background:var(--grey);border-left:3px solid var(--gold);border-radius:4px;
+    padding:7px 9px;font-size:8.8px;line-height:1.4;color:var(--ink);
+  }
+  .ba-item b{color:var(--navy);}
+  .ba-item .arrow{color:var(--blue);font-weight:800;padding:0 2px;}
+
+  .final-footer{
+    margin-top:14px;
+    background:var(--navy);
+    color:var(--white);
+    text-align:center;
+    padding:11px 14px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.2px;
+  }
+  .final-footer .ur{color:var(--gold);}
+</style>
+
+<!-- ============================================================ -->
+<!-- PAGE 1 — COVER + FRAMING + PERSONA 1 (Imran)                  -->
+<!-- ============================================================ -->
+<div class="page">
+  <div class="cover-header">
+    <div class="brand">
+      <span class="name">Aitbaar</span><span class="ur">اعتبار</span>
+    </div>
+    <div class="meta">
+      <div><b>Thematic Area:</b> Artificial Intelligence in Banking</div>
+      <div><b>UBL National Innovation Hackathon 2026</b></div>
+      <div>Team Aitbaar</div>
+    </div>
+  </div>
+
+  <div class="doc-title">
+    <h1>User Personas &amp; Journey Maps</h1>
+    <p>Day 1 Deliverable — UI/UX · AI-assisted SME loan origination</p>
+  </div>
+
+  <div class="framing">
+    Aitbaar sits on <b>one loan file</b> with three people around it: the <b>SME owner</b> who applies,
+    the <b>loan officer</b> who decides, and the <b>Head of SME Banking</b> who has to trust the system at
+    portfolio scale. The two primary users sit on opposite sides of the same file — every design decision
+    is judged by whether it removes friction for both at once.
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-head">
+      <div class="avatar gold">MI</div>
+      <div class="who">
+        <div class="role-tag">Persona 1 · Applicant · Primary User</div>
+        <div class="pname">Muhammad Imran</div>
+        <div class="psub">41 · Shah Alam Market, Lahore</div>
+      </div>
+    </div>
+    <div class="chip-strip">
+      <div class="chip"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Wholesale/retail cloth · 6 yrs · 3 employees</div>
+      <div class="chip"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg> Android · WhatsApp open all day</div>
+      <div class="chip"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg> Urdu-first, limited written English</div>
+      <div class="chip">💰 ~PKR 850,000/mo sales — cash + JazzCash</div>
+    </div>
+    <div class="persona-body">
+      <div class="snapshot"><span class="lbl">Snapshot — </span>Real, profitable business; never taken a formal loan.
+        Keeps a hand-written ledger (bahi). No laptop, printer, or scanner. Wants working capital before
+        Eid / wedding season. The bank feels like a closed door.</div>
+
+      <div class="two-col">
+        <div>
+          <div class="lbl-row"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg> Goals</div>
+          <ul class="bullets">
+            <li>Fast working capital before the season passes</li>
+            <li>No repeated branch trips</li>
+            <li>Judged on his business, not on contacts</li>
+            <li>Know exactly what's needed and where he stands</li>
+          </ul>
+        </div>
+        <div>
+          <div class="lbl-row warn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg> Frustrations</div>
+          <ul class="bullets warn">
+            <li>3–5 branch trips, each for one more undeclared document</li>
+            <li>Weeks-long decisions, unexplained rejection</li>
+            <li>Feels it runs on <i>sifarish</i>, not merit</li>
+            <li>English forms are a barrier</li>
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <div class="lbl-row"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,12 7,12 10,4 14,20 17,12 22,12"/></svg> Behaviours</div>
+        <ul class="bullets">
+          <li>Already sends document photos over WhatsApp; won't install a new app for one loan</li>
+          <li>Falls back to committee / family / <i>aarti</i> when refused by a bank</li>
+        </ul>
+      </div>
+
+      <div class="quote-block">
+        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 9c-1.7 0-3 1.3-3 3v5h5v-5H7c0-1.1.9-2 2-2V9zm10 0c-1.7 0-3 1.3-3 3v5h5v-5h-2c0-1.1.9-2 2-2V9z"/></svg>
+        <div>"Har baar naya kaghaz maang lete hain. Mujhe pehle hi bata dein kya chahiye, aur wajah bata dein agar mana karna hai."</div>
+      </div>
+
+      <div class="help-box">
+        <div class="htitle"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg> How Aitbaar helps</div>
+        <ul class="bullets help">
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Applies from his own counter, on WhatsApp, in Urdu</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Full document checklist declared up front, one-time consent</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Status pushed at every step — zero branch visits to apply</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>If something's missing, told the one exact item — nothing vague</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Aitbaar — User Personas &amp; Journey Maps</span><span>Page 1 of 4</span></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 2 — PERSONA 2 (Sana) + PERSONA 3 (Adnan, compact)        -->
+<!-- ============================================================ -->
+<div class="page">
+  <div class="persona-card" style="margin-bottom:12px;">
+    <div class="persona-head">
+      <div class="avatar blue">ST</div>
+      <div class="who">
+        <div class="role-tag">Persona 2 · Loan Officer · Primary User</div>
+        <div class="pname">Sana Tariq</div>
+        <div class="psub">33 · SME Credit / Relationship Officer, UBL Branch · 8 years experience</div>
+      </div>
+    </div>
+    <div class="chip-strip">
+      <div class="chip">💻 Branch desktop, bank email, internal systems</div>
+      <div class="chip">📄 40–60 page files, several open at once</div>
+    </div>
+    <div class="persona-body">
+      <div class="snapshot"><span class="lbl">Snapshot — </span>Wants to hit SME targets but is the bottleneck.
+        Reads every file by hand, cross-checks herself, writes decisions under time pressure. Cost to assess
+        a small file is close to a large file, so small tickets get pushed aside.</div>
+
+      <div class="two-col">
+        <div>
+          <div class="lbl-row"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg> Goals</div>
+          <ul class="bullets">
+            <li>Process more files a day without cutting corners</li>
+            <li>Consistent, defensible decisions</li>
+            <li>Spend time on judgement, not data entry</li>
+            <li>Catch fraud before it becomes a bad loan</li>
+          </ul>
+        </div>
+        <div>
+          <div class="lbl-row warn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg> Frustrations</div>
+          <ul class="bullets warn">
+            <li>Manual extraction and verification by eye</li>
+            <li>Two officers score the same file differently</li>
+            <li>No structured record — decisions are hard to audit</li>
+            <li>Chasing missing docs one at a time; small tickets not worth the hours</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="quote-block">
+        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 9c-1.7 0-3 1.3-3 3v5h5v-5H7c0-1.1.9-2 2-2V9zm10 0c-1.7 0-3 1.3-3 3v5h5v-5h-2c0-1.1.9-2 2-2V9z"/></svg>
+        <div>"I do not need the machine to decide for me. I need it to read the file, flag the risks, and let me approve in minutes instead of hours."</div>
+      </div>
+
+      <div class="help-box">
+        <div class="htitle"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg> How Aitbaar helps</div>
+        <ul class="bullets help">
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>One-page credit brief instead of 50 pages — score /100, risk tier, top factors, fraud flags, recommended range</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>One click through to any source document</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Approve, decline, or request exactly one missing item</li>
+          <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Every decision + reasoning lands in an audit trail</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="compact-card">
+    <div class="persona-head">
+      <div class="avatar" style="background:var(--navy);color:#fff;border-color:rgba(255,255,255,0.6);">AQ</div>
+      <div class="who">
+        <div class="role-tag" style="background:rgba(10,45,110,0.14);color:var(--navy-ink);">Persona 3 · Economic Buyer</div>
+        <div class="pname" style="color:var(--navy-ink);">Adnan Qureshi</div>
+        <div class="psub" style="color:var(--navy-ink);opacity:0.75;">Head of SME Banking, UBL</div>
+      </div>
+    </div>
+    <div class="persona-body">
+      <div class="cares-row">
+        <span class="care-chip">Portfolio growth</span>
+        <span class="care-chip">Turnaround time</span>
+        <span class="care-chip">Risk</span>
+        <span class="care-chip">Cost per file</span>
+        <span class="care-chip">Regulatory defensibility</span>
+      </div>
+      <div class="compact-two">
+        <div>
+          <div class="snapshot" style="margin-bottom:8px;"><span class="lbl">Snapshot — </span>Under pressure to grow the SME
+            book toward the SBP target of 750,000 borrowers by 2028. Can't hire his way to the throughput; needs
+            technology that raises officer capacity without raising risk — and that a regulator accepts.</div>
+          <div class="lbl-row"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg> Goals</div>
+          <ul class="bullets">
+            <li>More new SME borrowers at a controlled default rate</li>
+            <li>Turnaround cut from weeks to days</li>
+            <li>Higher files-per-officer-per-day without headcount</li>
+            <li>Only explainable, auditable, consent-based decisioning</li>
+          </ul>
+        </div>
+        <div class="help-box" style="align-self:flex-start;">
+          <div class="htitle"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg> How Aitbaar helps</div>
+          <ul class="bullets help">
+            <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Weeks-long manual file → same-day, explainable decision at ~PKR 30/assessment</li>
+            <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>Runs on a channel (WhatsApp) and core system (Temenos) the bank already uses</li>
+            <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>AI recommends, officer decides — every decision auditable</li>
+            <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,12 9,17 20,6"/></svg>A direct answer to the SBP's call for tech + data + fintech partnerships</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Aitbaar — User Personas &amp; Journey Maps</span><span>Page 2 of 4</span></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 3 — JOURNEY MAP 1: SME OWNER APPLIES                     -->
+<!-- ============================================================ -->
+<div class="page">
+  <div class="journey-title">
+    <h1>Journey Map 1 — SME Owner Applies</h1>
+    <p>Muhammad Imran, from trigger to decision · Channel: WhatsApp, Urdu-first</p>
+  </div>
+
+  <div class="emotion-chart">
+    <svg viewBox="0 0 500 60" style="width:100%;height:64px;" preserveAspectRatio="none">
+      <line x1="250" y1="4" x2="250" y2="58" stroke="#0A2D6E" stroke-width="1" stroke-dasharray="3,3" opacity="0.45"/>
+      <polygon points="250,2 253,9 261,9 254.5,13.5 257,20.5 250,16 243,20.5 245.5,13.5 239,9 247,9" fill="#C9A227"/>
+      <polyline points="50,40 150,40 250,45 350,45 450,40" fill="none" stroke="#b04530" stroke-width="2.5" stroke-dasharray="5,4" opacity="0.85"/>
+      <polyline points="50,35 150,25 250,25 350,15 450,10" fill="none" stroke="#1E88E5" stroke-width="2.5"/>
+      <circle cx="50" cy="40" r="3" fill="#b04530"/><circle cx="150" cy="40" r="3" fill="#b04530"/><circle cx="250" cy="45" r="3" fill="#b04530"/><circle cx="350" cy="45" r="3" fill="#b04530"/><circle cx="450" cy="40" r="3" fill="#b04530"/>
+      <circle cx="50" cy="35" r="3" fill="#1E88E5"/><circle cx="150" cy="25" r="3" fill="#1E88E5"/><circle cx="250" cy="25" r="3" fill="#1E88E5"/><circle cx="350" cy="15" r="3" fill="#1E88E5"/><circle cx="450" cy="10" r="3" fill="#1E88E5"/>
+    </svg>
+    <div class="legend">
+      <span><span class="sw today"></span>Emotion — today (without Aitbaar)</span>
+      <span><span class="sw aitbaar"></span>Emotion — with Aitbaar</span>
+      <span class="star-lbl">★ Moment of Truth</span>
+    </div>
+  </div>
+
+  <div class="jgrid" style="grid-template-columns:110px repeat(5,1fr);grid-auto-rows:min-content;">
+    <div class="rowlabel">Stage</div>
+    <div class="stagehead"><span class="num">1</span>Trigger</div>
+    <div class="stagehead"><span class="num">2</span>Apply</div>
+    <div class="stagehead mot"><span class="num">3</span>Submit Documents<div class="mot-badge"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 15,9 22,9.5 16.5,14 18.5,21 12,17 5.5,21 7.5,14 2,9.5 9,9"/></svg>Moment of Truth</div></div>
+    <div class="stagehead"><span class="num">4</span>Processing</div>
+    <div class="stagehead"><span class="num">5</span>Decision</div>
+
+    <div class="rowlabel">Action</div>
+    <div class="cell">Hears Aitbaar exists via WhatsApp; season stock running low</div>
+    <div class="cell">Messages the number, picks Urdu, reads full checklist, consents once</div>
+    <div class="cell">Photographs CNIC, 6-month bank statement, utility bill; answers 5 short questions</div>
+    <div class="cell">Keeps running the shop; types "status" for updates</div>
+    <div class="cell">Gets outcome in Urdu on WhatsApp</div>
+
+    <div class="rowlabel">Thinking</div>
+    <div class="cell">"Is this really different from a branch loan?"</div>
+    <div class="cell">"This is the whole list — no surprises later?"</div>
+    <div class="cell">"Will counter-shop photos actually be accepted?"</div>
+    <div class="cell">"At least I know where I stand"</div>
+    <div class="cell">"A real reason — not just a no"</div>
+
+    <div class="rowlabel">Emotion — Today</div>
+    <div class="cell emo-today">Skeptical, wary of past rejections</div>
+    <div class="cell emo-today">Guarded</div>
+    <div class="cell emo-today">Anxious — every past attempt broke down here</div>
+    <div class="cell emo-today">The usual black-hole wait</div>
+    <div class="cell emo-today">Resigned to silence or an unexplained no</div>
+
+    <div class="rowlabel">Emotion — With Aitbaar</div>
+    <div class="cell emo-aitbaar">Cautiously curious</div>
+    <div class="cell emo-aitbaar">Relieved — nothing hidden</div>
+    <div class="cell emo-aitbaar">Focused, in control — done from his own counter</div>
+    <div class="cell emo-aitbaar">Calm — status pushed automatically</div>
+    <div class="cell emo-aitbaar">Confident, respected either way</div>
+
+    <div class="rowlabel">Touchpoint</div>
+    <div class="cell">Word of mouth / bank SMS</div>
+    <div class="cell">WhatsApp (Urdu)</div>
+    <div class="cell">WhatsApp — photo upload</div>
+    <div class="cell">WhatsApp — status ping</div>
+    <div class="cell">WhatsApp (Urdu)</div>
+  </div>
+
+  <div class="before-after">
+    <div class="ba-item"><b>3–5 branch trips</b><span class="arrow">→</span>zero trips to apply</div>
+    <div class="ba-item"><b>Weeks of silence</b><span class="arrow">→</span>status at every step</div>
+    <div class="ba-item"><b>Unexplained no</b><span class="arrow">→</span>a reason and a path forward</div>
+  </div>
+
+  <div class="foot"><span>Aitbaar — User Personas &amp; Journey Maps</span><span>Page 3 of 4</span></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 4 — JOURNEY MAP 2: LOAN OFFICER PROCESSES A FILE          -->
+<!-- ============================================================ -->
+<div class="page">
+  <div class="journey-title">
+    <h1>Journey Map 2 — Loan Officer Processes a File</h1>
+    <p>Sana Tariq, from queue to notification · Channel: Aitbaar Dashboard</p>
+  </div>
+
+  <div class="emotion-chart">
+    <svg viewBox="0 0 400 60" style="width:100%;height:64px;" preserveAspectRatio="none">
+      <line x1="250" y1="4" x2="250" y2="58" stroke="#0A2D6E" stroke-width="1" stroke-dasharray="3,3" opacity="0.45"/>
+      <polygon points="250,2 253,9 261,9 254.5,13.5 257,20.5 250,16 243,20.5 245.5,13.5 239,9 247,9" fill="#C9A227"/>
+      <polyline points="50,40 150,40 250,35 350,40" fill="none" stroke="#b04530" stroke-width="2.5" stroke-dasharray="5,4" opacity="0.85"/>
+      <polyline points="50,25 150,20 250,15 350,10" fill="none" stroke="#1E88E5" stroke-width="2.5"/>
+      <circle cx="50" cy="40" r="3" fill="#b04530"/><circle cx="150" cy="40" r="3" fill="#b04530"/><circle cx="250" cy="35" r="3" fill="#b04530"/><circle cx="350" cy="40" r="3" fill="#b04530"/>
+      <circle cx="50" cy="25" r="3" fill="#1E88E5"/><circle cx="150" cy="20" r="3" fill="#1E88E5"/><circle cx="250" cy="15" r="3" fill="#1E88E5"/><circle cx="350" cy="10" r="3" fill="#1E88E5"/>
+    </svg>
+    <div class="legend">
+      <span><span class="sw today"></span>Emotion — today (without Aitbaar)</span>
+      <span><span class="sw aitbaar"></span>Emotion — with Aitbaar</span>
+      <span class="star-lbl">★ Moment of Truth</span>
+    </div>
+  </div>
+
+  <div class="jgrid" style="grid-template-columns:110px repeat(4,1fr);grid-auto-rows:min-content;">
+    <div class="rowlabel">Stage</div>
+    <div class="stagehead"><span class="num">1</span>File Arrives</div>
+    <div class="stagehead"><span class="num">2</span>Review</div>
+    <div class="stagehead mot"><span class="num">3</span>Decide<div class="mot-badge"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 15,9 22,9.5 16.5,14 18.5,21 12,17 5.5,21 7.5,14 2,9.5 9,9"/></svg>Moment of Truth</div></div>
+    <div class="stagehead"><span class="num">4</span>Notify</div>
+
+    <div class="rowlabel">Action</div>
+    <div class="cell">Opens the queue; the file already shows a score and risk tier</div>
+    <div class="cell">Opens the one-page AI Credit Brief; drills into a source document if needed</div>
+    <div class="cell">Approves, declines, or requests exactly one missing document</div>
+    <div class="cell">Applicant auto-notified in Urdu on WhatsApp</div>
+
+    <div class="rowlabel">Thinking</div>
+    <div class="cell">"Which of these actually needs my full attention?"</div>
+    <div class="cell">"Do I trust this number — show me why"</div>
+    <div class="cell">"Fast, and something I could defend to an auditor"</div>
+    <div class="cell">"Nothing left for me to chase manually"</div>
+
+    <div class="rowlabel">Emotion — Today</div>
+    <div class="cell emo-today">Buried — 40–60 pages await, no way to prioritise</div>
+    <div class="cell emo-today">Skeptical of manual cross-checking, black-box scores</div>
+    <div class="cell emo-today">Torn between speed and defensibility</div>
+    <div class="cell emo-today">Chasing missing docs one by one, by call or email</div>
+
+    <div class="rowlabel">Emotion — With Aitbaar</div>
+    <div class="cell emo-aitbaar">In control — queue is pre-triaged</div>
+    <div class="cell emo-aitbaar">Confident — SHAP factors explain every point</div>
+    <div class="cell emo-aitbaar">Decisive — one page, one click, reasoning attached</div>
+    <div class="cell emo-aitbaar">Relieved — the loop closes without lifting the phone</div>
+
+    <div class="rowlabel">Touchpoint</div>
+    <div class="cell">Dashboard — Application Queue</div>
+    <div class="cell">Dashboard — AI Credit Brief tab</div>
+    <div class="cell">Dashboard — Approve / Decline / Request Document</div>
+    <div class="cell">Audit Trail tab + WhatsApp (automatic)</div>
+  </div>
+
+  <div class="before-after">
+    <div class="ba-item"><b>50 pages by hand</b><span class="arrow">→</span>one page</div>
+    <div class="ba-item"><b>Inconsistent, undocumented calls</b><span class="arrow">→</span>consistent decisions, full audit trail</div>
+    <div class="ba-item"><b>Chasing docs one by one</b><span class="arrow">→</span>one exact request</div>
+  </div>
+
+  <div class="final-footer">
+    "The AI recommends. The officer decides." Every decision is consent-based, explainable, and auditable. <span class="ur">اعتبار</span>
+  </div>
+
+  <div class="foot"><span>Aitbaar — User Personas &amp; Journey Maps</span><span>Page 4 of 4</span></div>
+</div>

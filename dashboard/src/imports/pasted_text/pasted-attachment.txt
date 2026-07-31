@@ -1,0 +1,346 @@
+# Figma AI Prompts — Aitbaar Applicant Web Portal + Officer Dashboard
+
+Use with Figma **First Draft** (design file → ✨ AI icon / `Ctrl+/` → "First Draft").
+Each block below is self-contained — copy one whole block, paste it into the
+First Draft prompt box, set the platform toggle as noted, and generate.
+Do this once per block (each generation is a fresh one-shot request, it does
+not remember earlier ones).
+
+Order: generate A → F for the applicant portal, then G → I for the officer
+dashboard. Drop all resulting frames onto one Figma page afterward, in that
+order, and add a cover frame with team name + "UBL National Innovation
+Hackathon 2026 — AI in Banking" for the submission export.
+
+---
+
+## Shared style (already baked into every block below — reference only)
+
+```
+Brand: Aitbaar (اعتبار) — "Apna karobar, apna aitbaar." AI-powered SME loan
+origination for Pakistani banks. UBL National Innovation Hackathon 2026,
+theme: AI in Banking.
+
+Style: clean fintech SaaS, light mode, subtle glassmorphism (frosted white
+cards, soft shadow, 16px radius) — not flat, not dark mode.
+Font: Inter (400/500/600/700).
+Colors: background #F5F7FA, card surface #FFFFFF, primary text #0A2D6E
+(navy), secondary text #64748B, primary accent/CTA #1E88E5 (blue), hover
+#0A2D6E. Status: success #059669, danger #DC2626, warning #C9A227, info
+#6366F1.
+Cards: translucent white panels, 1px hairline border rgba(15,23,42,0.05),
+soft shadow, 16px radius. Badges: pill-shaped, uppercase, tinted background
+matching status color. Logo: circular emblem + wordmark "Aitbaar" with
+small Urdu "اعتبار" beside it.
+```
+
+---
+
+## PART 1 — Applicant Web Portal
+
+Platform: **Web** (mobile-first, also render at desktop width). Users are
+SME shopkeepers on phones, often non-technical: large tap targets, minimal
+text per screen, persistent EN/اردو toggle, visible step progress at all
+times, reassuring plain-language tone, full-width solid-blue primary CTAs.
+
+### A — Landing / welcome screen
+```
+Brand: Aitbaar (اعتبار) — "Apna karobar, apna aitbaar." AI-powered SME loan
+origination for Pakistani banks. UBL National Innovation Hackathon 2026,
+theme: AI in Banking. This is the APPLICANT-FACING WEB PORTAL — an
+alternative channel to WhatsApp for SME owners applying for a loan directly
+on the web. Users are small shopkeepers/traders on phones, often
+non-technical: large tap targets, minimal text, reassuring plain language.
+
+Style: clean fintech SaaS, light mode, subtle glassmorphism (frosted white
+cards, soft shadow, 16px radius). Font: Inter. Colors: background #F5F7FA,
+card surface #FFFFFF, primary text #0A2D6E, secondary text #64748B, primary
+accent #1E88E5, hover #0A2D6E. Status colors: success #059669, danger
+#DC2626, warning #C9A227, info #6366F1. Logo: circular emblem + "Aitbaar"
+wordmark with small Urdu "اعتبار" beside it.
+
+Design a responsive web landing page (mobile-first, also show desktop
+width).
+
+Top nav: circular Aitbaar logo mark + "Aitbaar" wordmark on left, EN/اردو
+toggle pill on right.
+
+Hero section: large heading "Apna karobar, apna aitbaar." subheading "Get a
+same-day SME loan decision — no branch visit needed." Below it a large
+primary button "Apply for a Loan →" and a secondary text link "Already
+applied? Check your status".
+
+Below hero, 3 trust-building feature tiles in a row (glass cards, icon +
+short label): "📋 Full checklist up front — no surprise paperwork", "🔒 Your
+data is only used for this application", "⚡ Decision in as little as 24
+hours". Footer: small print — "A pilot in partnership with [Bank Name].
+Your consent is required before any AI processing."
+```
+
+### B — Step 1: Consent & document checklist
+```
+Brand: Aitbaar (اعتبار) applicant web loan portal, UBL National Innovation
+Hackathon 2026, AI in Banking theme. Users are SME shopkeepers on phones,
+non-technical: large tap targets, minimal text, persistent EN/اردو toggle,
+reassuring plain language.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, danger #DC2626, warning #C9A227, info #6366F1, 16px radius
+cards with soft shadow and hairline border.
+
+Design a centered single-column web form card (max-width 640px, glass
+panel, generous padding) on the #F5F7FA background.
+
+Top: a horizontal 4-step progress bar with labels: "1 Consent" (active,
+blue filled circle), "2 Your Business", "3 Documents", "4 Review" (steps
+2-4 grayed out hollow circles, connected by a thin line).
+
+Card content: heading "Before we start", body text explaining Aitbaar uses
+AI to read your documents and recommend a decision, but a bank officer
+always makes the final call.
+
+Below that, a clearly boxed "You will need these 3 documents" checklist —
+3 rows, each with icon, title, one-line description:
+📄 CNIC (front) — clear photo, all 4 corners visible
+🏦 Bank statement — last 6 months, PDF or photos
+💡 Utility bill — electricity or gas, any recent month
+
+Below the checklist: a checkbox "I consent to Aitbaar using AI to review my
+documents for this loan application" with a small link "Privacy details".
+Primary button full-width "Continue →" (greyed out until checkbox ticked),
+secondary text link "Cancel" below it.
+```
+
+### C — Step 2: Business details form
+```
+Brand: Aitbaar (اعتبار) applicant web loan portal, UBL National Innovation
+Hackathon 2026, AI in Banking theme. Users are SME shopkeepers on phones,
+non-technical: large tap targets, minimal text, reassuring plain language.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, danger #DC2626, warning #C9A227, 16px radius cards, soft
+shadow, hairline border.
+
+Design the same centered single-column web form card layout (max-width
+640px) with the same 4-step progress bar, but now step 2 "Your Business" is
+active/blue and step 1 shows a green checkmark as completed.
+
+Card content: heading "Tell us about your business", subtext "5 quick
+questions — takes about 2 minutes."
+
+A clean vertical form with labeled inputs:
+- "What type of business do you run?" — dropdown (Kiryana/general store,
+  Tailoring, Auto parts, Electronics, Other)
+- "How many years have you been trading?" — number stepper input
+- "Average monthly sales (PKR)" — currency-formatted number input
+- "How much financing do you need (PKR)?" — currency-formatted number
+  input, helper text "Recommended range shown after AI review"
+- "What will this loan be used for?" — short text area, placeholder "e.g.
+  Ramzan stock, new equipment..."
+
+Bottom: "← Back" secondary button left, "Continue →" primary button right.
+```
+
+### D — Step 3: Document upload
+```
+Brand: Aitbaar (اعتبار) applicant web loan portal, UBL National Innovation
+Hackathon 2026, AI in Banking theme. Users are SME shopkeepers on phones,
+non-technical: large tap targets, minimal text, reassuring plain language.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, danger #DC2626, 16px radius cards, soft shadow, hairline
+border.
+
+Design the same centered single-column web form card layout (max-width
+640px) with the same 4-step progress bar, step 3 "Documents" active, steps
+1-2 shown completed with green checkmarks.
+
+Card content: heading "Upload your documents", subtext "Take a clear photo
+or upload a file for each." A thin progress indicator at top of card: "2 of
+3 uploaded".
+
+Three upload slots stacked vertically, each its own bordered dropzone card:
+1. "CNIC (front)" — empty state: dashed-border box, upload icon, "Drag file
+   here or tap to upload/take photo", note "JPG, PNG · max 10MB"
+2. "Bank statement (last 6 months)" — completed state: green checkmark,
+   filename "bank_statement.pdf", file size, small "Replace" text link
+3. "Utility bill" — empty dropzone state same as #1
+
+Bottom: "← Back" and "Continue →" (shown disabled/greyed until all 3
+uploaded).
+```
+
+### E — Step 4: Review & submit
+```
+Brand: Aitbaar (اعتبار) applicant web loan portal, UBL National Innovation
+Hackathon 2026, AI in Banking theme. Users are SME shopkeepers on phones,
+non-technical: large tap targets, minimal text, reassuring plain language.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, 16px radius cards, soft shadow, hairline border.
+
+Design the same centered single-column web form card layout (max-width
+640px) with the same 4-step progress bar, step 4 "Review" active, steps 1-3
+completed with green checkmarks.
+
+Card content: heading "Review your application", subtext "Please confirm
+everything is correct before submitting."
+
+A read-only summary in sectioned rows (label left, value right, thin
+divider between rows): Business type, Years trading, Monthly sales, Amount
+requested, Purpose — each row has a small "Edit" pencil icon link.
+
+Below that, a "Documents" mini-section: 3 rows, each with file icon +
+filename + green checkmark.
+
+A final consent checkbox: "I confirm the information above is accurate."
+Primary button full-width "Submit Application →".
+```
+
+### F — Confirmation + status tracker
+```
+Brand: Aitbaar (اعتبار) applicant web loan portal, UBL National Innovation
+Hackathon 2026, AI in Banking theme. Users are SME shopkeepers on phones,
+non-technical: reassuring, calm, plain-language tone — never reveal
+internal AI score/tier details to the applicant.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, info #6366F1, 16px radius cards, soft shadow, hairline
+border.
+
+Design two frames of a centered confirmation web screen (glass card):
+
+Frame 1 — Just submitted: large green circular checkmark icon, heading
+"Application submitted!", reference number in a highlighted pill "AITB-2847",
+body text "You do not need to visit a branch. We'll update you here and on
+WhatsApp." Secondary button "Check status anytime", note "Save your
+reference number".
+
+Frame 2 — Status tracker page: small search bar at top "Enter your
+reference number or phone". Below it, a vertical timeline/stepper with 4
+stages: Submitted ✓ (green) → Under Review ✓ (green) → Decision (active,
+blue, spinner icon) → Outcome (greyed, pending). Below the timeline, a
+status message card: "Your application is being reviewed by a loan
+officer. We'll notify you here and on WhatsApp as soon as a decision is
+made." No score, tier, or internal AI details shown anywhere on this
+screen.
+```
+
+---
+
+## PART 2 — Loan Officer Dashboard (unchanged from before)
+
+Platform: **Desktop / Web**, 1280px content width.
+
+### G — Application Queue
+```
+Brand: Aitbaar (اعتبار) — AI-powered SME loan origination for Pakistani
+banks. UBL National Innovation Hackathon 2026, AI in Banking theme. This is
+the LOAN OFFICER DASHBOARD (internal, desktop web tool).
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, danger #DC2626, warning #C9A227, info #6366F1, 16px radius
+cards, soft shadow, hairline border.
+
+Design a desktop web dashboard screen, 1280px content width.
+
+Top header bar (glass panel): circular logo mark + "Aitbaar — Loan Officer
+Dashboard" wordmark on the left; a "↻ Reset Demo" secondary button on the
+right.
+
+Page body:
+- Row: "Application Queue" heading + subtext "Review and decision pending
+  applications", right-aligned small glass pill showing "Total
+  Applications: 8".
+- Filter tabs: All / Submitted / Scored / Needs Docs / Decided, with
+  counts.
+- A data table in a glass card, columns: Applicant (avatar circle + name +
+  date applied), Business, Channel (WhatsApp icon or globe icon + label),
+  Amount (PKR), Risk (tier letter A/B/C/D, bold, color-coded), Status (pill
+  badge: draft=gray, submitted=blue, processing=blue pulsing, scored=indigo,
+  needs_docs=amber, approved=green, rejected=red), right-aligned
+  "Review →" button per row.
+
+Populate with 6 realistic sample rows, e.g.:
+Muhammad Imran / Imran Kiryana Store / WhatsApp / 300,000 / B / scored
+Fatima Bibi / Bibi Tailoring / WhatsApp / 150,000 / A / approved
+Ahmed Raza / Raza Auto Parts / Web / 500,000 / C / needs_docs
+Sana Malik / Malik General Store / WhatsApp / 250,000 / — / submitted
+Bilal Hussain / Hussain Electronics / WhatsApp / 400,000 / D / rejected
+Ayesha Khan / Khan Boutique / Web / 200,000 / — / processing
+```
+
+### H — Application Detail / AI Credit Brief
+```
+Brand: Aitbaar (اعتبار) loan officer dashboard, UBL National Innovation
+Hackathon 2026, AI in Banking theme.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+success #059669, danger #DC2626, warning #C9A227, info #6366F1, 16px radius
+cards, soft shadow, hairline border.
+
+Design a desktop web screen, same glassmorphism style, showing one loan
+application's detail view.
+
+Header row: back arrow button, applicant name "Muhammad Imran" + status
+badge "scored" (indigo), subtext "Imran Kiryana Store • Requested: PKR
+300,000". Right-aligned action buttons: "⬇ Download Brief" (secondary),
+"✕ Reject" (red outline), "✓ Approve" (solid blue, primary).
+
+Below header: an amber warning banner card with a triangle icon: "Bank
+statement shows 3 months, applicant claimed 6 months on file".
+
+Below that: a left-bordered highlight card, "AI recommendation" label, big
+bold "REVIEW" text in amber, small "POLICY OVERRIDE" red pill tag, bullet
+list of 2 reasons underneath, italic footer text "Recommendation only —
+the officer makes the final decision below."
+
+Main layout: left column narrow card "Applicant Profile" — rows of Date
+Applied / Phone / City / Channel / Consent (green check), hairline
+divider between rows.
+
+Right column (2x wide): a tab bar — "AI Credit Brief" (active, blue
+underline) / "Documents" / "Audit Trail".
+
+Under AI Credit Brief tab: three side-by-side stat tiles — "Credit Score
+72/100", "Risk Tier B" (blue), "Recommended Limit PKR 280,000" — inside a
+white card. Below, a "Rationale" section with a paragraph of AI-generated
+explanation text in a light gray box. Below that, "Key Impact Factors" — 5
+horizontal bar rows (SHAP-style): label on left, a centered diverging bar
+(green bar right for positive impact, red bar left for negative impact),
+signed percentage on the right. Example factors: "Monthly sales
+consistency +18", "Years trading +12", "Bank statement mismatch −22",
+"Business type risk +6", "Requested vs income ratio −9".
+```
+
+### I — Documents & Audit Trail tabs
+```
+Brand: Aitbaar (اعتبار) loan officer dashboard, UBL National Innovation
+Hackathon 2026, AI in Banking theme.
+
+Style: light mode glassmorphism, Inter font, background #F5F7FA, card
+#FFFFFF, primary text #0A2D6E, secondary text #64748B, accent #1E88E5,
+danger #DC2626, 16px radius cards, soft shadow, hairline border.
+
+Design two frames of the same desktop Application Detail layout as before
+(header, left profile card, right tab bar), but showing different active
+tabs:
+
+Frame 1 — "Documents" tab active: 3 stacked document cards, each with a
+file icon, filename ("cnic.jpg", "bank_statement.pdf", "utility_bill.jpg"),
+doc type label, upload timestamp, a key-value list of extracted fields
+(e.g. Name: Muhammad Imran, CNIC Number: 42101-XXXXXXX-1, Issue Date:
+2019-04-12), and a red flag line under the bank statement card: "⚠
+Statement covers 3 months, 6 required".
+
+Frame 2 — "Audit Trail" tab active: a vertical timeline list, each row
+with timestamp, actor (system/officer/applicant, bold), action label (e.g.
+"application submitted", "score computed", "docs requested", "decision
+recorded"), and a detail sentence — 6-8 rows total, oldest at top.
+```

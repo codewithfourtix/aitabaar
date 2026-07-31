@@ -42,6 +42,11 @@ class DocumentType(str, Enum):
     # Conditional tier — requested only above SBP R-8's clean-facility limit
     # (PKR 5,000,000), where a facility needs to be secured.
     property_document = "property_document"
+    # Escape hatch for a document the officer needs that isn't one of the
+    # named types above (e.g. a tax return, salary certificate). The actual
+    # requested name/reason travels in DecisionRequest.note, not here — see
+    # dashboard's Request Documents modal.
+    other = "other"
 
 
 class Document(BaseModel):
