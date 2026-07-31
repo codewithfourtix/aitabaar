@@ -82,6 +82,38 @@ class RecommendedAction(str, Enum):
     decline = "DECLINE"
 
 
+class Segment(str, Enum):
+    """SBP Prudential Regulations for SME Financing (16 Jul 2026), Part-I —
+    enterprise size band by annual sales turnover."""
+    micro = "micro"
+    small = "small"
+    medium = "medium"
+
+
+class ECIBStatus(str, Enum):
+    clear = "clear"
+    overdue = "overdue"
+    unavailable = "unavailable"
+
+
+class ECIBCheck(BaseModel):
+    """Regulation R-7: mandatory bureau check before any credit proposal is
+    considered. MOCKED — e-CIB is bank-facing, so a real pull requires the
+    partner bank's access; see app/engine/ecib.py. Never presented as a
+    real bureau record."""
+    status: ECIBStatus
+    note: str
+    checked_at: datetime
+
+
+class Disclosure(BaseModel):
+    """Regulation R-12: loan terms disclosed to the applicant in English
+    and Urdu. Deterministic templates (app/engine/disclosure.py) — terms
+    only, never the score/tier/factors the officer-only rationale carries."""
+    en: str
+    ur: str
+
+
 class ScoreResult(BaseModel):
     repayment_probability: float = Field(ge=0, le=1)
     risk_tier: str                   # "A" | "B" | "C" | "D"
@@ -102,6 +134,18 @@ class ScoreResult(BaseModel):
     data_completeness: float = 1.0
     defaulted_fields: list[str] = Field(default_factory=list)
     completeness_band: str = "HIGH"  # "HIGH" >=0.8 | "MEDIUM" >=0.6 | "LOW" <0.6
+    # Regulatory segmentation (app/engine/scoring.py) — Part-I size band and
+    # Start-up flag, derived from turnover/years, never model inputs.
+    segment: Segment = Segment.micro
+    is_startup: bool = False
+    # Amount-cap cascade (app/engine/scoring.py) — every gate's value and
+    # which one bound, so recommended_amount_pkr is never a black box.
+    # Keys: "affordability", "clean_facility_cap_r9", "per_party_cap_r5",
+    # "requested".
+    amount_cap_trace: dict[str, int] = Field(default_factory=dict)
+    binding_amount_gate: str = "requested"
+    # Bilingual disclosure (R-12) — applicant-facing terms, EN + UR.
+    disclosure: Disclosure | None = None
 
 
 class AuditEvent(BaseModel):
@@ -122,6 +166,9 @@ class Application(BaseModel):
     # The bot reads [0] to ask the applicant for exactly one item.
     pending_doc_requests: list[DocumentType] = Field(default_factory=list)
     score: ScoreResult | None = None
+    # Regulation R-7: mandatory bureau check, run once per submission (see
+    # app/engine/ecib.py). None until the pipeline runs it.
+    ecib_check: ECIBCheck | None = None
     audit_trail: list[AuditEvent] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

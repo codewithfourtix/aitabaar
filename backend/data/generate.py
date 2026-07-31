@@ -16,6 +16,14 @@ commented [SOURCED] (a published figure, used directly) or [ASSUMPTION] (a
 bounded modeling choice with no public figure) — see DATA_CARD.md's
 provenance section for the full citation list.
 
+Re-anchored (decision #19, docs/decisions.md) to State Bank of Pakistan,
+"Prudential Regulations for Small & Medium Enterprise Financing" (SME,
+Housing & Sustainable Finance Department, updated 16 Jul 2026) — this
+supersedes the earlier SBP SME PR bands/cap the sheet was written against.
+Two figures changed: enterprise size bands (Part-I) and the clean-facility
+exposure limit (Regulation R-9). See DATA_CARD.md's "Not adopted" note,
+now resolved.
+
 Run: python data/generate.py  (from backend/)
 """
 
@@ -56,15 +64,16 @@ def generate() -> pd.DataFrame:
     # suggests ~40% registered.
     registered = RNG.random(N) < 0.40
 
-    # [SOURCED bounds] SBP Small Enterprise turnover ceiling PKR 150M/yr
-    # (~12.5M/month); Medium PKR 150-800M/yr. Applicant pool skews
-    # micro/small with only a thin tail into medium — sigma/clip tuned so
-    # the vast majority of rows stay under the small-enterprise monthly
-    # ceiling and a handful reach into medium, never beyond it (max clip
-    # 60M/month ~= 720M/yr, inside the Medium band). Median ~650k sits in
-    # the sheet's suggested PKR 400k-800k center.
+    # [SOURCED bounds] SBP Small Enterprise turnover ceiling PKR 400M/yr
+    # (~33.3M/month, R-1 2026 bands); Medium PKR 400-2,000M/yr. Applicant
+    # pool skews micro/small with only a thin tail into medium —
+    # sigma/clip tuned so the vast majority of rows stay well under the
+    # small-enterprise ceiling and a handful reach into medium, never
+    # beyond it (max clip 150M/month ~= 1,800M/yr, inside the Medium
+    # band). Median ~650k sits in the sheet's suggested PKR 400k-800k
+    # center; upper clip widened alongside the new, higher size bands.
     monthly_revenue_pkr = np.clip(
-        RNG.lognormal(mean=np.log(650_000), sigma=1.0, size=N), 100_000, 60_000_000
+        RNG.lognormal(mean=np.log(650_000), sigma=1.0, size=N), 100_000, 150_000_000
     )
 
     # [SOURCED] SBP SME Financial Review: 99.06% of establishments employ
@@ -72,7 +81,7 @@ def generate() -> pd.DataFrame:
     # only to medium-scale-revenue rows reaches the sheet's ~20-50 tail for
     # the medium end.
     employees = 1 + RNG.poisson(lam=3, size=N)
-    medium_scale_revenue = monthly_revenue_pkr > 12_500_000
+    medium_scale_revenue = monthly_revenue_pkr > 33_300_000  # ~PKR 400M/yr Small ceiling (R-1 2026)
     employees = employees + np.where(medium_scale_revenue, RNG.integers(20, 40, size=N), 0)
     employees = np.clip(employees, 1, 50)
 
@@ -112,12 +121,13 @@ def generate() -> pd.DataFrame:
         0.0,
     ).round(-3)
 
-    # [SOURCED bound] SBP raised the clean (unsecured, cash-flow-based)
-    # lending limit to PKR 10M/borrower (Aug 2024) — this product's
-    # ceiling, so requests are capped there with a thin tail toward it,
-    # not beyond it.
+    # [SOURCED bound] SBP's clean (unsecured, cash-flow-based) lending
+    # limit is PKR 50M/borrower (Regulation R-9, 2026 PR) — this
+    # product's ceiling, so requests are capped there with a thin tail
+    # toward it, not beyond it. Median unchanged (~2M); only the upper
+    # tail widened versus the old PKR 10M cap.
     requested_amount_pkr = np.clip(
-        RNG.lognormal(mean=np.log(2_000_000), sigma=0.6, size=N), 500_000, 10_000_000
+        RNG.lognormal(mean=np.log(2_000_000), sigma=0.6, size=N), 500_000, 50_000_000
     )
 
     debt_burden_ratio = existing_installment_pkr / np.maximum(avg_monthly_inflow_pkr, 1)

@@ -18,6 +18,7 @@ All bodies are JSON unless noted. All timestamps are UTC ISO-8601. Amounts are i
 | 7 | POST | `/applications/{id}/score` | dashboard (demo trigger) | ✅ live (real engine: extract → verify → score → decide → explain) |
 | 8 | POST | `/applications/{id}/decision` | dashboard | ✅ live |
 | 9 | GET | `/demo/reset` | judging/demo | ✅ live |
+| 10 | GET | `/applications/mis-summary` | dashboard (portfolio view) | ✅ live — R-19 ii portfolio MIS |
 
 Backed by an in-memory store (no DB for the hackathon demo — [decisions.md](decisions.md)), seeded with 3 demo applicants (clean approve / borderline / name-mismatch fraud flag) and re-seedable via `GET /demo/reset`. Uploaded files persist to local disk (`backend/data/uploads/`, gitignored) — not durable across redeploys, fine for a single demo run.
 
@@ -128,12 +129,38 @@ No body. Triggers the engine. → `200` `Application` with `status: "scored"` an
     "override_reason": null,
     "data_completeness": 1.0,
     "defaulted_fields": [],
-    "completeness_band": "HIGH"
+    "completeness_band": "HIGH",
+    "segment": "micro",
+    "is_startup": false,
+    "amount_cap_trace": {
+      "affordability": 400000,
+      "clean_facility_cap_r9": 50000000,
+      "per_party_cap_r5": 100000000,
+      "requested": 500000
+    },
+    "binding_amount_gate": "affordability",
+    "disclosure": {
+      "en": "Application APP-001 — AI-recommended terms...",
+      "ur": "درخواست APP-001 — AI کی تجویز کردہ شرائط..."
+    }
+  },
+  "ecib_check": {
+    "status": "clear",
+    "note": "No overdue exposure on file (mock).",
+    "checked_at": "2026-07-31T12:00:00Z"
   }
 }
 ```
 
-Real engine: extraction (Gemini vision via OpenRouter) → verification (deterministic + `rapidfuzz`) → scoring (XGBoost, trained on `data/synthetic_sme.csv`) → **decision policy** (`app/engine/policy.py`, deterministic, reads `risk_tier` + verification flags only) → rationale (template, LLM-enhanced). One `AuditEvent` per stage. `risk_tier` ∈ `A | B | C | D`. If any stage throws, `status` becomes `failed` and the reason lands in `audit_trail` — the app is still returned (never hangs), just without a `score`.
+Real engine: extraction (Gemini vision via OpenRouter) → verification (deterministic + `rapidfuzz`) → **e-CIB check** (`app/engine/ecib.py`, mocked pending a bank partnership, R-7) → scoring (XGBoost, trained on `data/synthetic_sme.csv`) → **decision policy** (`app/engine/policy.py`, deterministic, reads `risk_tier` + verification flags — which now include any `ECIB_OVERDUE` flag — only) → rationale (template, LLM-enhanced) → **bilingual disclosure** (`app/engine/disclosure.py`, deterministic, R-12). One `AuditEvent` per stage. `risk_tier` ∈ `A | B | C | D`. If any stage throws, `status` becomes `failed` and the reason lands in `audit_trail` — the app is still returned (never hangs), just without a `score`.
+
+**Regulatory fields** (`segment`, `is_startup`, `amount_cap_trace`, `binding_amount_gate`,
+`disclosure`, `Application.ecib_check`) — see [compliance-sbp.md](compliance-sbp.md) for the
+full regulation → field mapping. `segment` ∈ `micro | small | medium` (SBP PR Part-I, by
+annualized `monthly_revenue_pkr`). `amount_cap_trace` shows every gate in the `MIN()` cascade
+that produces `recommended_amount_pkr`; `binding_amount_gate` names which one bound. `ecib_check`
+is **mocked** — see the module docstring in `app/engine/ecib.py` before treating it as a real
+bureau result.
 
 **Decision policy fields** (`recommended_action`, `decision_reasons`, `policy_overridden`,
 `override_reason`) are a recommendation only — they never change `repayment_probability` or
@@ -179,6 +206,28 @@ On `request_docs`, `requested_doc_types` is stored on the application as `pendin
 ## 9. `GET /demo/reset`
 
 No params. Clears the store and re-seeds the 3 demo applicants, running each through the real pipeline (not canned data) so the queue shows genuinely computed scores. Rationale always uses the template brief here (no live LLM call), so results are identical every run and need no network or API key. → `200` array of the 3 scored `Application`s. Plain GET so it's one click before a judging run.
+
+## 10. `GET /applications/mis-summary`
+
+No params. Portfolio-level counts over the in-memory store — Regulation R-19 ii ("efficient
+Management Information System... full and timely visibility of the portfolio size... quality
+etc."). Registered ahead of `/{id}` in the router so the literal path `mis-summary` is never
+swallowed as an `app_id`.
+
+→ `200`:
+
+```json
+{
+  "total_applications": 4,
+  "by_status": {"scored": 2, "approved": 1, "rejected": 1},
+  "by_channel": {"whatsapp": 3, "portal": 1},
+  "by_risk_tier": {"A": 1, "B": 1, "D": 1},
+  "by_segment": {"micro": 3}
+}
+```
+
+Unscored applications are simply omitted from `by_risk_tier`/`by_segment` (no score yet), not
+counted as a null bucket.
 
 ---
 
