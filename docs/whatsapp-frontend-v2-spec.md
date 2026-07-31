@@ -1,5 +1,10 @@
 # WhatsApp Frontend — v2 Feature Request
 
+> **Historical record — §4's 10 questions were later trimmed back to 5** (a live demo
+> was losing the room mid-questionnaire). See `docs/whatsapp-bot-flow.md` for the
+> current 5-question flow; everything else in this spec (tone, document tiers,
+> branding, UI robustness) still reflects what's actually implemented.
+
 For: whoever's picking up `whatsapp-bot/` (chat UI + conversation flow) next.
 Context: we're polishing this for hackathon submission to UBL. Two things drive every change below: (1) it has to read as **professional / bank-grade**, not a fun consumer chat demo, and (2) it's a **prototype standing in for the real WhatsApp Business API** (see root `README.md`) — so it should look and feel like a real WhatsApp thread, just branded to us, not like a toy.
 

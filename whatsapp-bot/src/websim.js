@@ -23,7 +23,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { handleMessage } = require('./flow');
+const { handleMessage, startPoller } = require('./flow');
 
 const app = express();
 app.use(express.json({ limit: '12mb' }));
@@ -53,19 +53,30 @@ const TINY_JPEG =
 
 // Aitbaar icon mark — header avatar and the chat watermark. Inlined as a data
 // URI so the page stays a single self-contained response.
+//
+// Loaded from THIS service's own assets/ dir, not docs/assets/ — both
+// Dockerfiles (Dockerfile, Dockerfile.twilio) build with whatsapp-bot/ as
+// the context and only `COPY assets ./assets`, so a path reaching up to
+// the repo-root docs/ folder resolves to nothing inside the container
+// (fails silently into the monogram fallback below — this is why the
+// logo/watermark were missing on the deployed Railway instance despite
+// working locally, where the sibling docs/ folder is actually present on
+// disk). Kept as copies here, not a symlink, since Docker COPY doesn't
+// follow a symlink pointing outside the build context either.
 const MARK_B64 = (() => {
   try {
-    return fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'assets', 'aitbaar-mark.png')).toString('base64');
+    return fs.readFileSync(path.join(__dirname, '..', 'assets', 'aitbaar-mark.png')).toString('base64');
   } catch {
     return null;
   }
 })();
 const MARK_URI = MARK_B64 ? `data:image/png;base64,${MARK_B64}` : '';
 
-// Full logo lockup — used on the explainer panel.
+// Full logo lockup — used on the explainer panel. Same containerized-path
+// reasoning as MARK_B64 above.
 const LOGO_B64 = (() => {
   try {
-    return fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'assets', 'aitbaar-logo.png')).toString('base64');
+    return fs.readFileSync(path.join(__dirname, '..', 'assets', 'aitbaar-logo.png')).toString('base64');
   } catch {
     return null;
   }
@@ -73,6 +84,23 @@ const LOGO_B64 = (() => {
 const LOGO_URI = LOGO_B64 ? `data:image/png;base64,${LOGO_B64}` : '';
 
 const uploadCount = new Map(); // phone -> how many docs sent so far
+
+// ── Proactive delivery of officer decisions (spec: applicant should not
+// have to ask "status" to learn a document was requested or a decision was
+// made) ─────────────────────────────────────────────────────────────────
+// flow.js's startPoller() already does exactly this for the real WhatsApp
+// channels (whatsapp-web.js / Twilio) via client.sendMessage(); reused
+// as-is here with a fake "client" that queues the message instead of
+// sending it over WhatsApp, so the browser can pick it up on its own poll.
+const pendingPush = new Map(); // phone (no +, no @c.us) -> string[] of queued messages
+startPoller({
+  sendMessage: async (chatId, reply) => {
+    const phone = chatId.replace('@c.us', '');
+    const queue = pendingPush.get(phone) || [];
+    queue.push(reply);
+    pendingPush.set(phone, queue);
+  },
+});
 
 function makeMsg(phone, body, media) {
   return {
@@ -118,10 +146,23 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
+// Browser polls this to pick up proactive pushes (document requests,
+// approve/reject) queued by startPoller above. Delivered at most once —
+// fetching drains the queue for that phone.
+app.get('/api/poll', (req, res) => {
+  const phone = req.query.phone;
+  const messages = pendingPush.get(phone) || [];
+  if (messages.length) pendingPush.delete(phone);
+  res.json({ messages });
+});
+
 // Clearing the browser session must also reset the specimen cursor, otherwise
 // a fresh thread starts sending the bank statement where the CNIC belongs.
 app.post('/api/reset', (req, res) => {
-  if (req.body && req.body.phone) uploadCount.delete(req.body.phone);
+  if (req.body && req.body.phone) {
+    uploadCount.delete(req.body.phone);
+    pendingPush.delete(req.body.phone);
+  }
   res.json({ ok: true });
 });
 
@@ -131,7 +172,8 @@ app.get('/', (_req, res) => res.type('html').send(PAGE));
 app.listen(PORT, () => {
   console.log(`Aitbaar web chat demo on :${PORT}`);
   console.log(`Backend: ${process.env.BACKEND_API_URL || 'http://localhost:8000'}`);
-  if (!MARK_B64) console.warn('docs/assets/aitbaar-mark.png not found — header falls back to a monogram');
+  if (!MARK_B64) console.warn('whatsapp-bot/assets/aitbaar-mark.png not found — header falls back to a monogram');
+  if (!LOGO_B64) console.warn('whatsapp-bot/assets/aitbaar-logo.png not found — pitch panel falls back to a text lockup');
 });
 
 // lucide icon paths (github.com/lucide-icons/lucide, ISC) — the dashboard
@@ -616,8 +658,30 @@ const PAGE = `<!doctype html>
       chat.appendChild(t); chat.scrollTop = chat.scrollHeight;
     }
     if (!on && t) t.remove();
-    if (!on) input.focus();
+    if (!on) { input.focus(); flushPush(); }
   }
+
+  // ── proactive delivery: the officer requesting a document, or
+  // approving/rejecting, must reach this chat on its own — the applicant
+  // should not have to type "status" to find out. Polls /api/poll, which
+  // drains flow.js's real startPoller() output (see websim.js server side).
+  // Queued locally and flushed only when the input isn't mid-reply, so a
+  // pushed message never lands out of order with whatever the user is
+  // actively sending.
+  var pushQueue = [];
+  function flushPush() {
+    while (pushQueue.length && !busy) add(pushQueue.shift(), 'bot');
+  }
+  setInterval(async function () {
+    try {
+      var r = await fetch('/api/poll?phone=' + encodeURIComponent(phone));
+      var j = await r.json().catch(function () { return {}; });
+      if (j.messages && j.messages.length) {
+        j.messages.forEach(function (m) { pushQueue.push(m); });
+      }
+    } catch (e) { /* best-effort — next tick will retry */ }
+    flushPush();
+  }, 4000);
 
   function toast(msg) {
     toastEl.textContent = msg;
