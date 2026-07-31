@@ -1,6 +1,29 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, X, Check, MessageCircle, Globe, FileText, Loader2, Printer, FilePlus2 } from "lucide-react";
+import { ArrowLeft, X, Check, MessageCircle, Globe, FileText, Loader2, Printer, FilePlus2, ShieldCheck, ShieldAlert, ShieldQuestion, Layers, Gauge } from "lucide-react";
 import { DashboardShell, GlassCard, Modal, FlagBadge, navy, blue, success, warning, danger, indigo } from "../shared";
+
+// SBP Prudential Regulations for SME Financing (16 Jul 2026), Part-I —
+// same segment names app/engine/scoring.py's _segment_for() assigns.
+const SEGMENT_LABELS: Record<string, string> = {
+  micro: "Micro Enterprise",
+  small: "Small Enterprise",
+  medium: "Medium Enterprise",
+};
+
+// Keys match ScoreResult.amount_cap_trace exactly (scoring.py's
+// _recommended_amount()) — the four gates in its MIN() cascade.
+const AMOUNT_GATE_LABELS: Record<string, string> = {
+  affordability: "Affordability (risk tier × monthly revenue)",
+  clean_facility_cap_r9: "Regulatory cap — clean facility (SBP R-9, ≤ PKR 50M)",
+  per_party_cap_r5: "Regulatory cap — per-party exposure (SBP R-5)",
+  requested: "Applicant's requested amount",
+};
+
+const ECIB_META: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  clear: { label: "No overdue exposure found", color: success, bg: "#ECFDF5", icon: ShieldCheck },
+  overdue: { label: "Overdue exposure flagged", color: danger, bg: "#FEF2F2", icon: ShieldAlert },
+  unavailable: { label: "Not available", color: "#64748B", bg: "#F1F5F9", icon: ShieldQuestion },
+};
 import { fetchApplication, submitDecision } from "../../services/api";
 
 type DetailTab = "brief" | "documents" | "audit";
@@ -23,6 +46,7 @@ const REQUESTABLE_DOC_TYPES: { id: string; label: string }[] = [
   { id: "utility_bill", label: "Utility Bill" },
   { id: "business_registration", label: "Business Registration Proof" },
   { id: "property_document", label: "Property Ownership / Rent Agreement" },
+  { id: "other", label: "Other / Custom Document…" },
 ];
 
 // Every extracted-field key this pipeline produces (app/engine/extraction.py's
@@ -106,6 +130,7 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
   const [submitting, setSubmitting] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestDocType, setRequestDocType] = useState(REQUESTABLE_DOC_TYPES[0].id);
+  const [customDocName, setCustomDocName] = useState("");
   const [requestReason, setRequestReason] = useState("");
   const [requesting, setRequesting] = useState(false);
 
@@ -143,14 +168,25 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
     }
   };
 
+  const isCustomDoc = requestDocType === "other";
+
   const handleRequestDocs = async () => {
     if (!app || !requestReason.trim()) return;
+    if (isCustomDoc && !customDocName.trim()) return;
+    // DocumentType.other is a fixed enum value (see schemas.py) - the actual
+    // custom name has nowhere else to live but the note, which the
+    // WhatsApp bot's needsDocs template already quotes back to the
+    // applicant right under the doc label, so it still reaches them.
+    const note = isCustomDoc
+      ? `Document: ${customDocName.trim()}\n\nReason: ${requestReason.trim()}`
+      : requestReason.trim();
     setRequesting(true);
     try {
-      await submitDecision(app.id, 'Loan Officer', 'request_docs', requestReason.trim(), [requestDocType as any]);
+      await submitDecision(app.id, 'Loan Officer', 'request_docs', note, [requestDocType as any]);
       await loadData();
       setShowRequestModal(false);
       setRequestReason("");
+      setCustomDocName("");
     } catch (err: any) {
       alert("Error requesting document: " + err.message);
     } finally {
@@ -412,9 +448,9 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
                   ))}
                 </div>
 
-                {/* Rationale */}
-                <div className="mb-5">
-                  <h4 className="text-sm font-semibold mb-2" style={{ color: navy }}>Rationale</h4>
+                {/* Summary narrative */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold mb-2" style={{ color: navy }}>Summary</h4>
                   <p
                     className="text-sm leading-relaxed p-4 rounded-xl"
                     style={{ background: "#F8FAFC", color: "#374151" }}
@@ -422,6 +458,120 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
                     {s.rationale}
                   </p>
                 </div>
+
+                {/* Repayment assessment */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: navy }}>
+                    <Gauge size={15} /> Repayment Assessment
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-xl p-4" style={{ background: "#F8FAFC" }}>
+                      <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "#94A3B8" }}>SBP Segment</p>
+                      <p className="text-sm font-semibold" style={{ color: navy }}>
+                        {SEGMENT_LABELS[s.segment] || s.segment || "—"}
+                        {s.is_startup && (
+                          <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: "#EEF2FF", color: indigo }}>
+                            Start-up (≤ 5 yrs)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>By annualized declared revenue</p>
+                    </div>
+                    <div className="rounded-xl p-4" style={{ background: "#F8FAFC" }}>
+                      <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "#94A3B8" }}>Data Completeness</p>
+                      <p className="text-sm font-semibold" style={{ color: s.completeness_band === "LOW" ? danger : s.completeness_band === "MEDIUM" ? warning : success }}>
+                        {Math.round((s.data_completeness ?? 1) * 100)}% ({s.completeness_band || "HIGH"})
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>
+                        {(s.defaulted_fields || []).length === 0
+                          ? "Every model input came from a verified document."
+                          : `${s.defaulted_fields.length} field${s.defaulted_fields.length === 1 ? "" : "s"} estimated from typical values, not collected yet`}
+                      </p>
+                    </div>
+                  </div>
+                  {(s.defaulted_fields || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {s.defaulted_fields.map((f: string) => (
+                        <span key={f} className="px-2 py-1 rounded-lg text-xs font-medium" style={{ background: "#FFFBEB", color: warning }}>
+                          {humanizeFieldLabel(f)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount cap cascade */}
+                {s.amount_cap_trace && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: navy }}>
+                      <Layers size={15} /> Recommended Amount — How It Was Calculated
+                    </h4>
+                    <p className="text-xs mb-3" style={{ color: "#64748B" }}>
+                      The lowest of four gates wins. The tightest one below is why the recommended limit is what it is.
+                    </p>
+                    <div className="rounded-xl overflow-hidden border" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+                      {Object.entries(s.amount_cap_trace).map(([gate, amount]: [string, any], i) => {
+                        const isBinding = gate === s.binding_amount_gate;
+                        return (
+                          <div
+                            key={gate}
+                            className="flex items-center justify-between px-4 py-2.5 text-sm"
+                            style={{
+                              background: isBinding ? "#EFF6FF" : i % 2 === 0 ? "white" : "#F8FAFC",
+                              borderTop: i > 0 ? "1px solid rgba(15,23,42,0.05)" : "none",
+                            }}
+                          >
+                            <span style={{ color: isBinding ? blue : "#374151", fontWeight: isBinding ? 600 : 400 }}>
+                              {AMOUNT_GATE_LABELS[gate] || gate}
+                              {isBinding && (
+                                <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={{ background: blue, color: "white" }}>
+                                  Binding
+                                </span>
+                              )}
+                            </span>
+                            <span style={{ color: isBinding ? blue : navy, fontWeight: isBinding ? 700 : 600 }}>
+                              PKR {Number(amount).toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* e-CIB check */}
+                {app.ecib_check && (() => {
+                  const meta = ECIB_META[app.ecib_check.status] || ECIB_META.unavailable;
+                  const Icon = meta.icon;
+                  return (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold mb-3" style={{ color: navy }}>Credit Bureau Check (e-CIB)</h4>
+                      <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: meta.bg }}>
+                        <Icon size={18} color={meta.color} className="shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: meta.color }}>{meta.label}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "#64748B" }}>{app.ecib_check.note}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Applicant disclosure */}
+                {s.disclosure && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold mb-2" style={{ color: navy }}>What the Applicant Was Told</h4>
+                    <p className="text-xs mb-2" style={{ color: "#94A3B8" }}>
+                      Terms only — never the score, tier, or factors above. Sent automatically once this brief was generated.
+                    </p>
+                    <div className="rounded-xl p-4 space-y-2" style={{ background: "#F8FAFC" }}>
+                      <p className="text-sm" style={{ color: "#374151" }}>{s.disclosure.en}</p>
+                      {s.disclosure.ur && (
+                        <p className="text-sm text-right" dir="rtl" style={{ color: "#374151", fontFamily: "serif" }}>{s.disclosure.ur}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Factors */}
                 <div>
@@ -572,6 +722,21 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
                 ))}
               </select>
             </div>
+            {isCustomDoc && (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: "#64748B" }}>
+                  Document name
+                </label>
+                <input
+                  type="text"
+                  value={customDocName}
+                  onChange={(e) => setCustomDocName(e.target.value)}
+                  placeholder="e.g. Latest tax return, salary certificate"
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ borderColor: "rgba(15,23,42,0.12)", color: navy }}
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: "#64748B" }}>
                 Reason for requesting this document
@@ -595,7 +760,7 @@ export default function ApplicationDetail({ onNav, appId }: { onNav: (p: string)
               </button>
               <button
                 onClick={handleRequestDocs}
-                disabled={requesting || !requestReason.trim()}
+                disabled={requesting || !requestReason.trim() || (isCustomDoc && !customDocName.trim())}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
                 style={{ background: `linear-gradient(135deg, ${blue}, ${navy})` }}
               >

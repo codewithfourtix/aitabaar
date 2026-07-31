@@ -201,6 +201,13 @@ const DOC_LABELS = {
     en: 'Business premises ownership proof or rent agreement',
     ur: 'کاروباری مقام کی ملکیت کا ثبوت یا کرایہ نامہ',
   },
+  // Officer-initiated only (dashboard's Request Documents "Other" option) —
+  // the actual document name lives in the officer's note, quoted right
+  // below this label in the needsDocs template, not in this fixed string.
+  other: {
+    en: 'Additional document (see note below)',
+    ur: 'اضافی دستاویز (نیچے نوٹ ملاحظہ کریں)',
+  },
 };
 
 // Labels and value fragments for the CONFIRM summary block. Kept here with
