@@ -23,7 +23,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { handleMessage, startPoller } = require('./flow');
+const { handleMessage } = require('./flow');
+const api = require('./api');
 
 const app = express();
 app.use(express.json({ limit: '12mb' }));
@@ -88,19 +89,33 @@ const uploadCount = new Map(); // phone -> how many docs sent so far
 // ── Proactive delivery of officer decisions (spec: applicant should not
 // have to ask "status" to learn a document was requested or a decision was
 // made) ─────────────────────────────────────────────────────────────────
-// flow.js's startPoller() already does exactly this for the real WhatsApp
-// channels (whatsapp-web.js / Twilio) via client.sendMessage(); reused
-// as-is here with a fake "client" that queues the message instead of
-// sending it over WhatsApp, so the browser can pick it up on its own poll.
-const pendingPush = new Map(); // phone (no +, no @c.us) -> string[] of queued messages
-startPoller({
-  sendMessage: async (chatId, reply) => {
-    const phone = chatId.replace('@c.us', '');
-    const queue = pendingPush.get(phone) || [];
-    queue.push(reply);
-    pendingPush.set(phone, queue);
-  },
-});
+//
+// This deliberately does NOT go through flow.js's startPoller(). That poller
+// walks the in-memory `sessions` map, so it can only notify an applicant
+// whose session still exists in THIS process. On Railway the container
+// restarts on every redeploy and on sleep/wake, which wipes that map — and
+// then an officer's decision is silently never delivered, while typing
+// "status" still works (that path re-derives the application from the
+// backend by phone). That combination is exactly what was reported from
+// production, and it reproduces locally by restarting this process mid-flow.
+//
+// So the browser's own poll asks the backend directly. The backend is the
+// durable source of truth, so this survives a restart on either side, and
+// the browser de-duplicates on `${appId}:${status}` held in localStorage —
+// which also survives a page refresh.
+const DECISION_STATUSES = ['approved', 'rejected', 'needs_docs'];
+
+async function decisionFor(phoneDigits) {
+  const application = await api.findByPhone(`+${phoneDigits}`);
+  if (!application || !DECISION_STATUSES.includes(application.status)) return null;
+  // Rendering it through the normal "status" path keeps one implementation of
+  // the applicant-facing wording (and its never-reveal-the-score rules), and
+  // rebuilds the session — so a NEEDS_DOCS applicant can still upload the
+  // requested file even though the restart lost their session.
+  const text = await handleMessage(makeMsg(phoneDigits, 'status', null));
+  if (!text) return null;
+  return { key: `${application.id}:${application.status}`, text };
+}
 
 function makeMsg(phone, body, media) {
   return {
@@ -146,23 +161,27 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
-// Browser polls this to pick up proactive pushes (document requests,
-// approve/reject) queued by startPoller above. Delivered at most once —
-// fetching drains the queue for that phone.
-app.get('/api/poll', (req, res) => {
-  const phone = req.query.phone;
-  const messages = pendingPush.get(phone) || [];
-  if (messages.length) pendingPush.delete(phone);
-  res.json({ messages });
+// Browser polls this to pick up officer decisions (document requests,
+// approve/reject) without the applicant typing "status". Answered from the
+// backend, not from process memory, so a container restart cannot lose it.
+// `decision` is idempotent: the same key is returned every poll until the
+// status changes, and the browser drops keys it has already shown.
+app.get('/api/poll', async (req, res) => {
+  const phone = String(req.query.phone || '');
+  if (!phone) return res.json({ decision: null });
+  try {
+    res.json({ decision: await decisionFor(phone) });
+  } catch (err) {
+    // Backend blip — the next poll retries. Never 500 here: the page polls
+    // every few seconds and a red console on the demo laptop helps no one.
+    res.json({ decision: null });
+  }
 });
 
 // Clearing the browser session must also reset the specimen cursor, otherwise
 // a fresh thread starts sending the bank statement where the CNIC belongs.
 app.post('/api/reset', (req, res) => {
-  if (req.body && req.body.phone) {
-    uploadCount.delete(req.body.phone);
-    pendingPush.delete(req.body.phone);
-  }
+  if (req.body && req.body.phone) uploadCount.delete(req.body.phone);
   res.json({ ok: true });
 });
 
@@ -707,11 +726,20 @@ const PAGE = `<!doctype html>
 
   // ── proactive delivery: the officer requesting a document, or
   // approving/rejecting, must reach this chat on its own — the applicant
-  // should not have to type "status" to find out. Polls /api/poll, which
-  // drains flow.js's real startPoller() output (see websim.js server side).
+  // should not have to type "status" to find out.
+  //
+  // /api/poll answers from the backend and keeps returning the same
+  // "appId:status" key until the officer does something else, so
+  // delivery does not depend on any server-side memory surviving. The
+  // "have I already shown this" bookkeeping lives here, in localStorage,
+  // because the browser is the one thing that persists across both a
+  // container restart and a page refresh.
+  //
   // Queued locally and flushed only when the input isn't mid-reply, so a
   // pushed message never lands out of order with whatever the user is
   // actively sending.
+  var SEEN_KEY = 'aitbaar.sim.seenDecision';
+  var seenDecision = localStorage.getItem(SEEN_KEY) || '';
   var pushQueue = [];
   function flushPush() {
     while (pushQueue.length && !busy) add(pushQueue.shift(), 'bot');
@@ -720,8 +748,10 @@ const PAGE = `<!doctype html>
     try {
       var r = await fetch('/api/poll?phone=' + encodeURIComponent(phone));
       var j = await r.json().catch(function () { return {}; });
-      if (j.messages && j.messages.length) {
-        j.messages.forEach(function (m) { pushQueue.push(m); });
+      if (j.decision && j.decision.key && j.decision.key !== seenDecision) {
+        seenDecision = j.decision.key;
+        try { localStorage.setItem(SEEN_KEY, seenDecision); } catch (e) {}
+        pushQueue.push(j.decision.text);
       }
     } catch (e) { /* best-effort — next tick will retry */ }
     flushPush();
@@ -831,6 +861,7 @@ const PAGE = `<!doctype html>
     try { await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone }) }); } catch (e) {}
     localStorage.removeItem(PHONE_KEY);
     localStorage.removeItem(LOG_KEY);
+    localStorage.removeItem(SEEN_KEY);
     localStorage.removeItem('aitbaar.sim.dc');
     location.reload();
   };
